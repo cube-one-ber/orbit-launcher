@@ -2,6 +2,15 @@
 
 A local-first game and application launcher written in **Rust**, with a native **Qt 6 / KDE Kirigami** interface. Bring installed games into one searchable library, or add executables and JSON providers of your own.
 
+## Features
+
+- **One library:** Steam, Lutris, Prism Launcher, Modrinth Launcher, Epic Games and GOG Galaxy, with platform availability shown below.
+- **Clean dark and light themes:** searchable grid/list views, compact cards, favorites, recent launches and keyboard shortcuts.
+- **Better artwork:** launcher covers, public store artwork, Modrinth galleries, offline caching and per-game custom covers.
+- **Minecraft update art:** covers match each instance's installed game drop or update, with an option to prefer modpack galleries.
+- **Direct Prism launches:** Play starts the selected instance while skipping Prism's main window; Prism manages accounts, Java and mod loaders.
+- **Extendable:** add custom applications or implement JSON/Rust providers without changing the interface.
+
 ![Orbit in dark mode](docs/dark.png)
 
 ![Orbit in light mode](docs/light.png)
@@ -52,7 +61,7 @@ Use your actual Craft path. `-Package` stages Qt/KDE dependencies and runs isola
 
 ## Your library
 
-Choose **dark or light mode**, switch between grid and list views, and adjust card size in Appearance. Search, source filters, favorites and recent launches keep the library easy to navigate. Covers load from installed launchers and a background artwork cache. Minecraft instances use artwork for their installed game drop or update. Small application icons stay sharp instead of being stretched across cards; missing images use a quiet initials placeholder. In game details, **Choose cover** sets a local image and **Reset** restores automatic selection. Appearance includes an offline artwork toggle and a choice to prefer Modrinth modpack galleries. See the [artwork guide](docs/artwork.md) for selection, caching and extension hints. Browse controls help configure sources and add a game or application. Invalid forms keep your input for correction.
+Choose **dark or light mode**, switch between grid and list views, and adjust card size in Appearance. Search, source filters, favorites and recent launches keep the library easy to navigate. Browse controls help configure sources and add a game or application. Invalid forms keep your input for correction.
 
 The default library contains actual installed games. Sample entries appear only with `--demo`. Orbit does not download your account library or require credentials. A successful launch message confirms dispatch of the request; it does not confirm that the game reached its main menu.
 
@@ -76,6 +85,25 @@ Modrinth discovery supports both legacy `profiles` and current `instances` datab
 Settings live in `$XDG_CONFIG_HOME/orbit/settings.json` (normally `~/.config/orbit/settings.json`) on Linux and `%APPDATA%\Orbit\settings.json` on Windows. `ORBIT_CONFIG_DIR` overrides the directory. Writes atomically replace the file. Legacy accent-based settings retain favorites, source paths and history, and default to dark mode. Malformed settings are reported and protected from automatic overwrite; correct the file or move it aside, then restart. `--light` selects and saves light mode unless used with `--demo`.
 
 Keyboard shortcuts: **Ctrl+F** search, **Ctrl+R** refresh, **Ctrl+N** add, **Ctrl+,** appearance, **Escape** close dialogs / clear search.
+
+## Artwork and offline use
+
+Covers load from installed launchers and a background artwork cache. Small application icons keep their proportions; missing images use a quiet initials placeholder. Open a game's details and select **Choose cover** to use a local image, or **Reset** to restore automatic selection.
+
+Under **Appearance**, **Download missing covers** controls networking and is enabled by default. Downloads use public artwork services and may send a game title or product/project ID; Orbit does not request account credentials. Disable this option to use local and previously cached artwork offline.
+
+**Minecraft covers** defaults to **Game drops & updates**, matching the installed Minecraft version rather than the newest release. Select **Modpack galleries** to prefer featured Modrinth artwork for linked packs; missing galleries fall back to update art.
+
+The cache lives in `~/.cache/orbit/artwork` on Linux (respecting `XDG_CACHE_HOME`) and `%LOCALAPPDATA%\Orbit\cache\artwork` on Windows. `ORBIT_CACHE_DIR` changes the cache root; setting only `ORBIT_CONFIG_DIR` isolates it under `<config>/cache/artwork`.
+
+Demo mode reads existing cached covers without downloading. To preview the sample library with real artwork:
+
+```sh
+cargo run --locked --no-default-features --example artwork-preview -- /tmp/orbit-preview-cache/artwork
+ORBIT_CACHE_DIR=/tmp/orbit-preview-cache cargo run --locked -- --demo
+```
+
+The first command downloads and validates public covers without launching games. See the [artwork guide](docs/artwork.md) for selection priorities, cache behavior, upstream references and provider hints.
 
 ## Extend Orbit
 
@@ -131,6 +159,8 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software target/debug/orbit --demo --
 ```
 
 Rust tests cover Steam libraries and escaped Windows paths, read-only Lutris queries, custom Prism directories, Epic/GOG fixtures, both Modrinth schemas, direct launch arguments, artwork selection/cache/offline behavior, Minecraft version matching, extensions, protocols, metadata migration and repeated settings replacement. Windows CI also exercises a temporary test-owned registry key. UI checks cover both palettes, search, favorites, filters, views, dialogs, custom games, validation, compact navigation, image/icon error fallbacks, artwork preferences and demo isolation.
+
+The 0.3 update passed **49 Rust tests**, core/full-GUI Clippy and offscreen UI checks locally on Linux. Public artwork downloads and an offline GUI restart were also verified. Native Windows game launches and clean-machine deployment remain on the [release checklist](TODO.md).
 
 The smoke test loads the Kirigami window and exits automatically. Add `--screenshot /absolute/path/preview.png` to capture the rendered page, or `--light` for its light theme. On Windows, run `scripts/check-ui.ps1 -Executable <path-to-orbit.exe>` after building. See [TODO.md](TODO.md) for native Windows, accessibility and packaging work.
 
