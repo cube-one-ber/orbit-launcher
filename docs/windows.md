@@ -1,6 +1,6 @@
 # Windows development and validation
 
-Orbit includes native Windows discovery and process launching. **The Windows GUI build and standalone deployment have not yet been executed on a Windows machine in this development session.** The source includes Windows CI for the Rust core and scripts to build and validate the full application. See [TODO.md](../TODO.md) for the remaining release gates.
+Orbit includes native Windows discovery and process launching. GitHub Actions builds the full MSVC GUI, tests the Rust core, and runs offscreen interaction checks; see [automated builds](ci.md) for downloads and dependencies. Standalone deployment and real game launches still require native validation. See [TODO.md](../TODO.md) for the remaining release gates.
 
 ## Prerequisites
 

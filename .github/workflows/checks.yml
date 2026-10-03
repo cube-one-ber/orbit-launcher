@@ -1,16 +1,106 @@
-name: Checks
+name: CI
+
 on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  QT_VERSION: '6.8.3'
+  KDE_VERSION: '6.13.0'
+
 jobs:
-  core:
+  format:
+    name: Rust formatting
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --check
+
+  build:
+    name: Build / ${{ matrix.platform }}
+    timeout-minutes: 45
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x86_64
+            target: x86_64-unknown-linux-gnu
+            qt-arch: linux_gcc_64
+          - os: windows-2022
+            platform: windows-x86_64
+            target: x86_64-pc-windows-msvc
+            qt-arch: win64_msvc2022_64
+          - os: macos-15-intel
+            platform: macos-x86_64
+            target: x86_64-apple-darwin
+            qt-arch: clang_64
+          - os: macos-15
+            platform: macos-arm64
+            target: aarch64-apple-darwin
+            qt-arch: clang_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
-      - run: cargo fmt --check
-      - run: cargo test --locked --no-default-features
-      - run: cargo clippy --locked --no-default-features --all-targets -- -D warnings
+          components: clippy
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform }}-qt-${{ env.QT_VERSION }}
+      - name: Test the Rust core
+        run: cargo test --locked --no-default-features --target ${{ matrix.target }}
+      - name: Lint the Rust core
+        run: cargo clippy --locked --no-default-features --all-targets --target ${{ matrix.target }} -- -D warnings
+      - name: Activate MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install Linux build and runtime dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ninja-build libgl1-mesa-dev \
+            libxkbcommon-dev libegl1-mesa-dev libfontconfig1-dev libxcb-cursor0
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: ${{ matrix.qt-arch }}
+          modules: qtshadertools qtsvg
+          cache: true
+      - name: Cache Kirigami
+        uses: actions/cache@v4
+        with:
+          path: target/ci-deps
+          key: kirigami-v1-${{ matrix.os }}-${{ matrix.target }}-qt-${{ env.QT_VERSION }}-kde-${{ env.KDE_VERSION }}
+      - name: Build Kirigami and configure Qt paths
+        run: python scripts/ci-dependencies.py
+      - name: Build the release application
+        run: cargo build --locked --release --target ${{ matrix.target }}
+      - name: Check the release UI
+        shell: pwsh
+        run: |
+          $extension = if ($IsWindows) { '.exe' } else { '' }
+          ./scripts/check-ui.ps1 -Executable "target/${{ matrix.target }}/release/orbit$extension"
+      - name: Archive the release binary
+        run: python scripts/ci-archive.py ${{ matrix.target }} ${{ matrix.platform }}
+      - name: Upload the release binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: orbit-${{ matrix.platform }}
+          path: target/artifacts/*
+          if-no-files-found: error
+          retention-days: 14
