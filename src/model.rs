@@ -1,6 +1,33 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf};
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ArtworkKind {
+    #[default]
+    Cover,
+    Icon,
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MinecraftArtwork {
+    #[default]
+    Updates,
+    Modpacks,
+}
+
+/// Provider hints and resolved artwork presentation. Older manifests need only `artwork`.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Artwork {
+    pub kind: ArtworkKind,
+    pub source: String,
+    pub icon: String,
+    pub remote: Vec<String>,
+    pub minecraft_version: Option<String>,
+    pub modrinth_project: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Game {
     pub id: String,
@@ -8,6 +35,10 @@ pub struct Game {
     pub provider: String,
     pub subtitle: String,
     pub artwork: String,
+    #[serde(default)]
+    pub art: Artwork,
+    #[serde(default)]
+    pub launch_notice: String,
     #[serde(default)]
     pub command: Vec<String>,
     #[serde(default)]
@@ -55,6 +86,9 @@ pub struct Settings {
     pub favorites: Vec<String>,
     pub played: BTreeMap<String, u64>,
     pub custom_games: Vec<Game>,
+    pub online_artwork: bool,
+    pub minecraft_artwork: MinecraftArtwork,
+    pub artwork_overrides: BTreeMap<String, String>,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -62,13 +96,16 @@ impl Default for Settings {
             theme: Theme::Dark,
             density: "comfortable".into(),
             view: "grid".into(),
-            sources: ["steam", "lutris", "prism", "epic", "gog"]
+            sources: ["steam", "lutris", "prism", "modrinth", "epic", "gog"]
                 .into_iter()
                 .map(|id| (id.into(), SourceConfig::default()))
                 .collect(),
             favorites: vec![],
             played: BTreeMap::new(),
             custom_games: vec![],
+            online_artwork: true,
+            minecraft_artwork: MinecraftArtwork::Updates,
+            artwork_overrides: BTreeMap::new(),
         }
     }
 }

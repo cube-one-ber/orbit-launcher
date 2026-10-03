@@ -33,6 +33,24 @@ pub fn data_home() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|| home().join(".local/share"))
 }
+pub fn cache_dir() -> PathBuf {
+    if let Some(dir) = std::env::var_os("ORBIT_CACHE_DIR") {
+        return dir.into();
+    }
+    // Configuration overrides also isolate downloads during portable/fixture runs.
+    if let Some(dir) = std::env::var_os("ORBIT_CONFIG_DIR") {
+        return PathBuf::from(dir).join("cache");
+    }
+    if cfg!(windows) {
+        return crate::platform::Platform::current()
+            .local
+            .join("Orbit/cache");
+    }
+    std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home().join(".cache"))
+        .join("orbit")
+}
 pub fn load(dir: &Path) -> Result<Settings, String> {
     let file = dir.join("settings.json");
     if !file.exists() {

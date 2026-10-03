@@ -33,8 +33,10 @@ This uses [windeployqt](https://doc.qt.io/qt-6/windows-deployment.html), follows
 ## Libraries and paths
 
 - Configuration: `%APPDATA%\Orbit\settings.json`, overridden by `ORBIT_CONFIG_DIR`.
+- Artwork cache: `%LOCALAPPDATA%\Orbit\cache\artwork`, overridden by `ORBIT_CACHE_DIR` (the override contains the `artwork` folder). `ORBIT_CONFIG_DIR` alone isolates the cache under that configuration folder.
 - Steam: HKCU/HKLM `Software\Valve\Steam` (both registry views), then Program Files locations; extra libraries come from `libraryfolders.vdf`.
 - Prism: `%APPDATA%\PrismLauncher`, with executable discovery in `%LOCALAPPDATA%\Programs\PrismLauncher`, Program Files, PATH, and configured portable data folders. See [Prism data locations](https://prismlauncher.org/wiki/getting-started/data-location/).
+- Modrinth: `%APPDATA%\ModrinthApp` and legacy `%APPDATA%\com.modrinth.theseus`, or an additional folder/`app.db` configured in Sources. Custom profile storage comes from the database settings. Current instances use the registered `modrinth://launch/instance/<id>` handler; a command override receives the URI. Older profiles open the launcher without claiming to start the game.
 - Epic: `%PROGRAMDATA%\Epic\EpicGamesLauncher\Data\Manifests`, with additional `.item` folders configurable in Sources. Orbit skips incomplete installs, DLC and engine plugins. It launches with the registered `com.epicgames.launcher` protocol; a command override receives that URI as one argument.
 - GOG: game folders from HKCU/HKLM `Software\GOG.com\Games` in both views, plus standard `GOG Galaxy\Games` locations in Program Files. Add other game folders or libraries in Sources. Orbit reads `goggame-*.info`, excludes DLC and deduplicates IDs. Galaxy's executable is resolved from its installation registry path or Program Files; a command override can select another installation.
 - Lutris: unavailable on Windows; [Lutris supports Linux](https://lutris.net/downloads).
@@ -48,6 +50,8 @@ Example command overrides (each line is a separate example for its provider's co
 ["D:/Apps/GOG Galaxy/GalaxyClient.exe"]
 ```
 
+Prism starts instances with `--dir` and `--launch`, skipping its main window while retaining its account, Java and loader handling. Account, console or error dialogs may still appear.
+
 `[]` restores automatic discovery. Epic's executable override must accept an Epic game URI. Use installed and configured launchers; Orbit does not sign in to accounts itself.
 
 For an isolated preview, run `orbit.exe --demo` or `orbit.exe --demo --light`. Normal theme changes persist; preview changes do not write settings or launch games.
@@ -55,8 +59,9 @@ For an isolated preview, run `orbit.exe --demo` or `orbit.exe --demo --light`. N
 ## Native release checklist
 
 1. Run `cargo test --locked --no-default-features` and `scripts/check-ui.ps1 -Executable <path-to-orbit.exe>` on Windows; inspect the configured CI results too.
-2. Launch installed Steam, Epic and GOG games and a Prism instance; verify non-default locations and paths with spaces and Unicode.
-3. Toggle themes, restart, and verify favorites/history/settings survive repeated saves.
-4. Check keyboard navigation, file/folder pickers, 125%, 150%, and 200% display scaling.
-5. Test the staged bundle on a Windows machine without Craft or Qt on PATH.
-6. Confirm Qt/KDE license compliance before producing a signed installer.
+2. Launch installed Steam, Epic and GOG games, a Prism instance, and a current Modrinth instance; verify non-default locations and paths with spaces and Unicode. Verify Prism skips the main window, an already-running Prism receives the instance request, and older Modrinth profiles open the launcher with a clear message.
+3. Check Modrinth default/custom content paths, registered URI dispatch, and command overrides. Test artwork downloads, cached covers after restarting offline, and local covers from paths with spaces and Unicode.
+4. Toggle themes, restart, and verify favorites/history/settings survive repeated saves.
+5. Check keyboard navigation, file/folder pickers, 125%, 150%, and 200% display scaling.
+6. Test the staged bundle on a Windows machine without Craft or Qt on PATH.
+7. Confirm Qt/KDE license compliance before producing a signed installer.

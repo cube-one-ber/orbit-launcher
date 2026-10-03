@@ -22,6 +22,9 @@ impl Provider for Prism {
     fn name(&self) -> &str {
         "Prism Launcher"
     }
+    fn note(&self) -> &str {
+        "Play starts the instance directly, skipping Prism's main window. Prism still manages accounts, Java and mod loaders."
+    }
     fn discover(&self, config: &SourceConfig) -> (Vec<Game>, Vec<String>) {
         let platform = crate::platform::Platform::current();
         let roots = roots(config, platform.prism_roots());
@@ -82,6 +85,8 @@ impl Provider for Prism {
                     },
                     "org.prismlauncher.PrismLauncher",
                 );
+                // Prism's CLI suppresses its main window when --launch is set.
+                // Do not add --show-window; account/error prompts may still be necessary.
                 command.extend([
                     "--dir".into(),
                     root.to_string_lossy().into(),
@@ -96,16 +101,50 @@ impl Provider for Prism {
                 let key = url::Url::from_file_path(&instance)
                     .map(|u| u.to_string())
                     .unwrap_or_default();
+                let version = match fs::read(instance.join("mmc-pack.json")) {
+                    Ok(bytes) => match serde_json::from_slice::<serde_json::Value>(&bytes) {
+                        Ok(pack) => pack["components"].as_array().and_then(|items| {
+                            items
+                                .iter()
+                                .find(|v| v["uid"] == "net.minecraft")
+                                .and_then(|v| v["version"].as_str())
+                                .map(str::to_owned)
+                        }),
+                        Err(e) => {
+                            errors
+                                .push(format!("{}: {e}", instance.join("mmc-pack.json").display()));
+                            None
+                        }
+                    },
+                    Err(_) => properties.get("IntendedVersion").cloned(),
+                };
+                let project = properties
+                    .get("ManagedPackType")
+                    .filter(|v| *v == "modrinth")
+                    .and_then(|_| properties.get("ManagedPackID"))
+                    .cloned();
                 games.push(Game {
                     id: format!("prism:{key}"),
                     title: properties.get("name").cloned().unwrap_or(id),
                     provider: "prism".into(),
-                    subtitle: "Minecraft · Prism Launcher".into(),
-                    artwork: first_art([
-                        instance.join("icon.png"),
-                        icons.join(format!("{icon}.png")),
-                        icons.join(format!("{icon}.svg")),
-                    ]),
+                    subtitle: format!(
+                        "Minecraft {} · Prism Launcher",
+                        version.as_deref().unwrap_or("")
+                    ),
+                    artwork: crate::artwork::local_cover(&instance),
+                    art: Artwork {
+                        minecraft_version: version,
+                        modrinth_project: project,
+                        icon: first_art([
+                            instance.join("icon.png"),
+                            instance.join("icon.webp"),
+                            icons.join(format!("{icon}.png")),
+                            icons.join(format!("{icon}.webp")),
+                            icons.join(format!("{icon}.svg")),
+                        ]),
+                        ..Default::default()
+                    },
+                    launch_notice: String::new(),
                     command,
                     launch_uri: None,
                     directory: None,

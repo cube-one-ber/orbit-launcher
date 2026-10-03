@@ -6,6 +6,7 @@ fn main() {
             "qml/Theme.qml",
             "qml/AppIcon.qml",
             "qml/GameCard.qml",
+            "qml/GameArtwork.qml",
             "qml/UiChecks.qml",
         ]),
     )

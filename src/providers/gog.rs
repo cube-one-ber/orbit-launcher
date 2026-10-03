@@ -96,10 +96,14 @@ impl Provider for Gog {
                             title: info.name,
                             provider: "gog".into(),
                             subtitle: "GOG Galaxy".into(),
-                            artwork: first_art([
-                                directory.join("cover.jpg"),
-                                directory.join(format!("goggame-{}.ico", info.game_id)),
-                            ]),
+                            artwork: crate::artwork::local_cover(directory),
+                            art: Artwork {
+                                icon: first_art([
+                                    directory.join(format!("goggame-{}.ico", info.game_id))
+                                ]),
+                                ..Default::default()
+                            },
+                            launch_notice: String::new(),
                             command,
                             launch_uri: None,
                             directory: None,

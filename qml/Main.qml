@@ -21,6 +21,9 @@ Kirigami.ApplicationWindow {
     property string query: ""
     property string sortBy: "Name"
     property var selectedGame: null
+    onLibraryChanged: {
+        if (selectedGame) selectedGame = library.games.find(g => g.id === selectedGame.id) || selectedGame;
+    }
     readonly property bool darkMode: colors.dark
     readonly property color pageColor: colors.window
     readonly property bool compactNavigation: width < 980
@@ -37,7 +40,7 @@ Kirigami.ApplicationWindow {
     function changeSection(value) { section = value; sourceFilter = "all"; }
     function providerName(id) {
         const provider = library.providers.find(p=>p.id === id);
-        return provider ? provider.name : ({custom:"Custom games",epic:"Epic Games",gog:"GOG Galaxy"})[id] || id;
+        return provider ? provider.name : ({custom:"Custom games",epic:"Epic Games",gog:"GOG Galaxy",modrinth:"Modrinth Launcher"})[id] || id;
     }
     function openGame(game) { selectedGame = game; details.open(); }
     function closeGame() { details.close(); }
@@ -79,7 +82,7 @@ Kirigami.ApplicationWindow {
         if (Qt.application.arguments.includes("--light")) save({theme:"light"});
         backend.refresh();
     }
-    Timer { interval: 100; repeat: true; running: backend.busy; onTriggered: backend.poll() }
+    Timer { interval: 100; repeat: true; running: backend.busy || backend.artwork_busy; onTriggered: backend.poll() }
     Timer { interval: 2400; running: Qt.application.arguments.includes("--smoke-test"); onTriggered: Qt.quit() }
     Timer {
         interval: 1400; running: Qt.application.arguments.includes("--screenshot")
@@ -215,7 +218,7 @@ Kirigami.ApplicationWindow {
                     Item { Layout.fillHeight: true }
                     NavItem { text: "Sources"; symbol: "folder"; selected: root.section === "sources"; onClicked: root.changeSection("sources") }
                     NavItem { text: "Appearance"; symbol: "settings"; selected: root.section === "appearance"; onClicked: root.changeSection("appearance") }
-                    Controls.Label { visible: !root.compactNavigation; text: backend.demo ? "Preview mode" : "Orbit 0.2"; color: colors.faint; font.pixelSize: 11; Layout.leftMargin: 12; Layout.topMargin: 14; Layout.bottomMargin: 5 }
+                    Controls.Label { visible: !root.compactNavigation; text: backend.demo ? "Preview mode" : "Orbit 0.3"; color: colors.faint; font.pixelSize: 11; Layout.leftMargin: 12; Layout.topMargin: 14; Layout.bottomMargin: 5 }
                 }
             }
             ColumnLayout {
@@ -231,7 +234,7 @@ Kirigami.ApplicationWindow {
                         Controls.Label { text: root.section === "sources" ? "Connect and manage your launchers." : root.section === "appearance" ? "A simple space that feels like yours." : root.visibleGames.length + (root.visibleGames.length === 1 ? " game" : " games") + (root.sourceFilter === "all" ? " in your library" : " from " + root.providerName(root.sourceFilter)); color: colors.muted; font.pixelSize: 12 }
                     }
                     Item { Layout.fillWidth: true }
-                    Controls.BusyIndicator { running: backend.busy; visible: running; implicitWidth: 26; implicitHeight: 26 }
+                    Controls.BusyIndicator { running: backend.busy || backend.artwork_busy; visible: running; hoverEnabled: true; implicitWidth: 26; implicitHeight: 26; Accessible.name: backend.busy ? "Scanning library" : "Fetching artwork"; Controls.ToolTip.visible: hovered; Controls.ToolTip.text: Accessible.name }
                     Button { symbol: colors.dark ? "sun" : "moon"; quiet: true; Accessible.name: colors.dark ? "Switch to light theme" : "Switch to dark theme"; onClicked: root.save({theme:colors.dark ? "light" : "dark"}); Controls.ToolTip.visible: hovered; Controls.ToolTip.text: Accessible.name }
                     Button { symbol: "refresh"; quiet: true; enabled: !backend.busy; Accessible.name: "Refresh library"; onClicked: backend.refresh(); Controls.ToolTip.visible: hovered; Controls.ToolTip.text: "Refresh · Ctrl+R" }
                     Button { id: addButton; text: "Add game"; symbol: "plus"; primary: true; onClicked: root.openAdd() }
@@ -273,7 +276,7 @@ Kirigami.ApplicationWindow {
                                 model: root.visibleGames
                                 property int columns: Math.max(2, Math.floor(width / (root.prefs.density === "compact" ? 180 : 220)))
                                 cellWidth: root.prefs.view === "list" ? width : width / columns
-                                cellHeight: root.prefs.view === "list" ? 77 : root.prefs.density === "compact" ? 232 : 280
+                                cellHeight: root.prefs.view === "list" ? 77 : root.prefs.density === "compact" ? 220 : 250
                                 boundsBehavior: Flickable.StopAtBounds
                                 Controls.ScrollBar.vertical: Controls.ScrollBar { }
                                 delegate: Loader {
@@ -296,14 +299,11 @@ Kirigami.ApplicationWindow {
                                             background: Rectangle { color: listRow.hovered ? colors.elevated : colors.surface; radius: 8; border.color: listRow.activeFocus ? colors.accent : colors.border }
                                             contentItem: RowLayout {
                                                 spacing: 14
-                                                Rectangle { Layout.preferredWidth: 38; Layout.preferredHeight: 38; Layout.leftMargin: 12; color: colors.elevated; radius: 6
-                                                    AppIcon { anchors.centerIn: parent; name: "app"; ink: colors.faint; width: 18; height: 18 }
-                                                    Image { anchors.fill: parent; source: gameLoader.modelData.artwork; fillMode: Image.PreserveAspectCrop; asynchronous: true; clip: true }
-                                                }
+                                                GameArtwork { game: gameLoader.modelData; theme: colors; thumbnail: true; Layout.preferredWidth: 38; Layout.preferredHeight: 38; Layout.leftMargin: 12 }
                                                 Controls.Label { text: gameLoader.modelData.title; color: colors.text; font { pixelSize: 13; weight: Font.Medium } elide: Text.ElideRight; Layout.fillWidth: true }
                                                 Controls.Label { text: root.providerName(gameLoader.modelData.provider); color: colors.muted; font.pixelSize: 12; visible: root.width > 900 }
                                                 Button { symbol: "star"; quiet: true; checked: gameLoader.modelData.favorite; Accessible.name: "Toggle favorite"; onClicked: backend.favorite(gameLoader.modelData.id) }
-                                                Button { symbol: "play"; quiet: true; Accessible.name: "Launch " + gameLoader.modelData.title; onClicked: backend.launch(gameLoader.modelData.id); Layout.rightMargin: 10 }
+                                                Button { symbol: "play"; quiet: true; Accessible.name: (gameLoader.modelData.launch_notice ? "Open launcher for " : "Launch ") + gameLoader.modelData.title; onClicked: backend.launch(gameLoader.modelData.id); Layout.rightMargin: 10 }
                                             }
                                         }
                                     }
@@ -430,6 +430,29 @@ Kirigami.ApplicationWindow {
                                     Combo { model: ["Comfortable", "Compact"]; currentIndex: root.prefs.density === "compact" ? 1 : 0; Accessible.name: "Card size"; onActivated: root.save({density:currentIndex === 1 ? "compact" : "comfortable"}) }
                                 }
                             }
+                            Panel {
+                                Layout.fillWidth: true; implicitHeight: artworkSettings.implicitHeight + 48
+                                ColumnLayout {
+                                    id: artworkSettings
+                                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
+                                    spacing: 12
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        ColumnLayout {
+                                            Layout.fillWidth: true; spacing: 7
+                                            Controls.Label { text: "Library artwork"; color: colors.text; font { pixelSize: 16; weight: Font.DemiBold } }
+                                            Controls.Label { text: "Download missing covers"; color: colors.muted; font.pixelSize: 12 }
+                                        }
+                                        Controls.CheckBox { checked: root.prefs.online_artwork; Accessible.name: "Download missing artwork"; onToggled: root.save({online_artwork:checked}) }
+                                    }
+                                    Controls.Label { text: "Uses launcher artwork, Modrinth galleries and official Minecraft update art. Downloads are cached for offline use. You can choose a cover in any game's details."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.faint; font.pixelSize: 12 }
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Controls.Label { text: "Minecraft covers"; color: colors.muted; font.pixelSize: 12; Layout.fillWidth: true }
+                                        Combo { model: ["Game drops & updates", "Modpack galleries"]; implicitWidth: 210; currentIndex: root.prefs.minecraft_artwork === "modpacks" ? 1 : 0; Accessible.name: "Minecraft artwork preference"; onActivated: root.save({minecraft_artwork:currentIndex === 1 ? "modpacks" : "updates"}) }
+                                    }
+                                }
+                            }
                             Controls.Label { text: "Changes are saved automatically.\n\nCtrl+F  Search     Ctrl+R  Refresh     Ctrl+N  Add game     Ctrl+,  Appearance"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.faint; font.pixelSize: 12 }
                         }
                     }
@@ -444,10 +467,17 @@ Kirigami.ApplicationWindow {
         contentItem: ColumnLayout {
             spacing: 16
             Controls.Label { text: root.selectedGame ? root.selectedGame.subtitle : ""; color: colors.muted; Layout.fillWidth: true; wrapMode: Text.Wrap }
-            Controls.Label { text: "Opens with " + (root.selectedGame ? root.providerName(root.selectedGame.provider) : ""); color: colors.faint; font.pixelSize: 12 }
-            Image { source: root.selectedGame ? root.selectedGame.artwork : ""; visible: source.toString() !== ""; Layout.fillWidth: true; Layout.preferredHeight: 160; fillMode: Image.PreserveAspectFit; asynchronous: true }
+            Controls.Label { text: root.selectedGame && root.selectedGame.provider === "prism" ? "Starts the instance directly; Prism's main window stays hidden." : "Opens with " + (root.selectedGame ? root.providerName(root.selectedGame.provider) : ""); color: colors.faint; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            Controls.Label { text: root.selectedGame ? root.selectedGame.launch_notice || "" : ""; visible: text !== ""; color: colors.muted; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            GameArtwork { game: root.selectedGame; theme: colors; Layout.fillWidth: true; Layout.preferredHeight: 180 }
+            RowLayout {
+                Layout.fillWidth: true
+                Controls.Label { text: root.selectedGame && root.selectedGame.art ? root.selectedGame.art.source : ""; color: colors.faint; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
+                Button { text: "Choose cover"; symbol: "folder"; quiet: true; onClicked: { filePicker.target = "cover"; filePicker.gameId = root.selectedGame.id; filePicker.nameFilters = ["Images (*.png *.jpg *.jpeg *.webp *.svg *.ico)"]; filePicker.open(); } }
+                Button { text: "Reset"; quiet: true; visible: root.selectedGame !== null && root.prefs.artwork_overrides[root.selectedGame.id] !== undefined; onClicked: backend.set_artwork(root.selectedGame.id, "") }
+            }
             RowLayout { spacing: 10
-                Button { text: "Play"; symbol: "play"; primary: true; onClicked: { backend.launch(root.selectedGame.id); details.close(); } }
+                Button { text: root.selectedGame && root.selectedGame.launch_notice ? "Open launcher" : "Play"; symbol: "play"; primary: true; onClicked: { backend.launch(root.selectedGame.id); details.close(); } }
                 Button { text: root.selectedGame && root.library.games.some(g=>g.id === root.selectedGame.id && g.favorite) ? "Favorited" : "Favorite"; symbol: "star"; onClicked: backend.favorite(root.selectedGame.id) }
                 Item { Layout.fillWidth: true }
                 Button { visible: root.selectedGame !== null && root.selectedGame.provider === "custom"; text: "Remove"; onClicked: { backend.remove_game(root.selectedGame.id); details.close(); } }
@@ -462,7 +492,7 @@ Kirigami.ApplicationWindow {
         title: "Configure " + root.providerName(sourceId)
         contentItem: ColumnLayout {
             spacing: 12
-            Controls.Label { text: ({steam:"Add folders containing steamapps.",lutris:"Add Lutris data folders or pga.db files.",prism:"Add Prism data folders containing prismlauncher.cfg.",epic:"Add Epic Games Launcher manifest folders (.item files).",gog:"Add GOG game folders or libraries containing goggame-*.info files."})[sourceDialog.sourceId] || "This provider reads its JSON manifest."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.muted; font.pixelSize: 12 }
+            Controls.Label { text: ({steam:"Add folders containing steamapps.",lutris:"Add Lutris data folders or pga.db files.",prism:"Add Prism data folders containing prismlauncher.cfg. Play skips Prism's main window.",modrinth:"Add Modrinth data folders containing app.db, or select an app.db path. Custom app directories are read from the database.",epic:"Add Epic Games Launcher manifest folders (.item files).",gog:"Add GOG game folders or libraries containing goggame-*.info files."})[sourceDialog.sourceId] || "This provider reads its JSON manifest."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.muted; font.pixelSize: 12 }
             Controls.Label { text: "Additional paths"; color: colors.text; font.pixelSize: 12 }
             Controls.TextArea {
                 id: sourcePaths; Layout.fillWidth: true; implicitHeight: 100
@@ -536,8 +566,9 @@ Kirigami.ApplicationWindow {
     Dialogs.FileDialog {
         id: filePicker
         property string target: "executable"
-        title: target === "artwork" ? "Choose a cover image" : "Choose an executable"
-        onAccepted: { const path = backend.local_path(selectedFile.toString()); if (target === "artwork") gameArtwork.text = path; else gameExecutable.text = path; }
+        property string gameId: ""
+        title: target === "artwork" || target === "cover" ? "Choose a cover image" : "Choose an executable"
+        onAccepted: { const path = backend.local_path(selectedFile.toString()); if (target === "cover") backend.set_artwork(gameId, path); else if (target === "artwork") gameArtwork.text = path; else gameExecutable.text = path; }
     }
     Dialogs.FolderDialog {
         id: folderPicker

@@ -117,6 +117,13 @@ fn prism_respects_instance_dir_and_passes_id_as_one_argument() {
     let game = games.iter().find(|g| g.title == "Fixture world").unwrap();
     assert_eq!(game.command.last().unwrap(), "My world");
     assert_eq!(game.command[1], "--dir");
+    assert!(game.command.iter().any(|arg| arg == "--launch"));
+    assert!(
+        !game
+            .command
+            .iter()
+            .any(|arg| arg == "--show-window" || arg == "--show")
+    );
     assert_eq!(game.last_played, 1700000000);
 }
 #[test]
@@ -165,6 +172,8 @@ fn saved_metadata_survives_refresh() {
         provider: "custom".into(),
         subtitle: "".into(),
         artwork: "".into(),
+        art: Artwork::default(),
+        launch_notice: String::new(),
         command: vec!["test".into()],
         launch_uri: None,
         directory: None,
@@ -193,6 +202,8 @@ fn missing_executable_reports_actionable_error() {
         provider: "custom".into(),
         subtitle: "".into(),
         artwork: "".into(),
+        art: Artwork::default(),
+        launch_notice: String::new(),
         command: vec!["/no/such/orbit-test-executable".into()],
         launch_uri: None,
         directory: None,
@@ -221,6 +232,8 @@ fn launch_arguments_are_not_interpreted_by_a_shell() {
         provider: "custom".into(),
         subtitle: "".into(),
         artwork: "".into(),
+        art: Artwork::default(),
+        launch_notice: String::new(),
         command: vec![
             script.display().to_string(),
             out.display().to_string(),

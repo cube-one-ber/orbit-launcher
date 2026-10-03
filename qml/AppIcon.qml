@@ -29,6 +29,7 @@ Canvas {
         else if (name === "settings") { for(let y of [6,12,18]) line(3,y,21,y); for(let p of [[8,6],[16,12],[10,18]]){c.fillRect(p[0]-2,p[1]-2,4,4);} }
         else if (name === "folder") { c.beginPath(); c.moveTo(3,6); c.lineTo(10,6); c.lineTo(12,9); c.lineTo(21,9); c.lineTo(21,20); c.lineTo(3,20); c.closePath(); c.stroke(); }
         else if (name === "chevron") { line(8,9,12,13); line(12,13,16,9); }
+        else if (name === "cube") { c.beginPath(); c.moveTo(12,2); c.lineTo(21,7); c.lineTo(21,17); c.lineTo(12,22); c.lineTo(3,17); c.lineTo(3,7); c.closePath(); c.stroke(); line(3,7,12,12); line(21,7,12,12); line(12,12,12,22); }
         else { c.strokeRect(4,4,16,16); line(4,9,20,9); line(9,9,9,20); }
     }
 }

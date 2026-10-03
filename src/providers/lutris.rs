@@ -48,6 +48,7 @@ impl Provider for Lutris {
                     let slug: String = row.get::<_, Option<String>>(2)?.unwrap_or_default();
                     let runner: String = row.get::<_, Option<String>>(3)?.unwrap_or_default();
                     let data = path.parent().unwrap_or(&root);
+                    let slug_ref = slug.as_str();
                     let mut command =
                         launcher(config, is_flatpak(&root), "lutris", "net.lutris.Lutris");
                     command.push(format!("lutris:rungameid/{id}"));
@@ -60,11 +61,30 @@ impl Provider for Lutris {
                         title: row.get(1)?,
                         provider: "lutris".into(),
                         subtitle: format!("Lutris · {runner}"),
-                        artwork: first_art([
-                            data.join(format!("coverart/{slug}.jpg")),
-                            data.join(format!("banners/{slug}.jpg")),
-                            data.join(format!("icons/{slug}.png")),
-                        ]),
+                        artwork: first_art(
+                            [
+                                data.to_path_buf(),
+                                crate::store::cache_dir()
+                                    .parent()
+                                    .unwrap_or(data)
+                                    .join("lutris"),
+                            ]
+                            .into_iter()
+                            .flat_map(|dir| {
+                                ["coverart", "banners"].into_iter().flat_map(move |folder| {
+                                    ["webp", "jpg", "png", "jpeg"]
+                                        .map(|ext| dir.join(format!("{folder}/{slug_ref}.{ext}")))
+                                })
+                            }),
+                        ),
+                        art: Artwork {
+                            icon: first_art(
+                                ["png", "webp", "svg"]
+                                    .map(|ext| data.join(format!("icons/{slug}.{ext}"))),
+                            ),
+                            ..Default::default()
+                        },
+                        launch_notice: String::new(),
                         command,
                         launch_uri: None,
                         directory: None,

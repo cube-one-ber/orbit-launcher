@@ -59,7 +59,49 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 - [ ] Add an opt-in application source for Windows Start menu shortcuts and Linux desktop files.
   - Resolve platform shortcut/desktop-entry semantics without arbitrary shell evaluation.
   - Distinguish applications from launchers and avoid duplicate entries.
-- [ ] Add emulator profiles, per-game arguments and custom entry/cover editing.
+- [ ] Add emulator profiles, per-game arguments and custom entry editing.
+
+## P2a — Modrinth, Minecraft and artwork (0.3)
+
+- [x] Discover installed Modrinth profiles on Linux and Windows without modifying launcher databases.
+  - Detect current `instances`/content-set/link tables and legacy `profiles` tables.
+  - Follow `custom_dir`, extra folders, explicit `app.db`, environment overrides and Linux Flatpak data.
+  - Deduplicate databases and preserve game IDs across database layout changes.
+  - Skip unfinished/missing profiles; report malformed rows and unsupported schemas independently.
+- [x] Launch current Modrinth instances through encoded instance links or command overrides.
+  - Restrict accepted links to instance launch operations.
+  - Explain legacy launcher limitations, label the action Open launcher, and avoid recording a game launch for that action.
+- [x] Start Prism with `--dir` and `--launch`, skipping the main window.
+  - Preserve arguments containing spaces and Unicode; retain Prism's authentication, Java and loader handling.
+  - Explain behavior in Sources, instance details and documentation.
+- [x] Discover Minecraft versions from Prism components and Modrinth's applied content set.
+- [x] Default Minecraft covers to official game-drop/update artwork for the installed version.
+  - Match known release/hotfix ranges; use exact official patch-note metadata for unknown versions and snapshots.
+  - Offer Modrinth featured-gallery preference with update-art fallback.
+  - Keep different Minecraft versions from sharing unrelated covers.
+- [x] Improve automatic art for all sources.
+  - Prefer Steam custom grid art and landscape images, including nested library caches.
+  - Separate Lutris banners/covers from icons; discover Epic/GOG local art and public GOG images.
+  - Use unambiguous exact Steam title matches when another source has no cover.
+- [x] Add background enrichment, incremental GUI updates and an offline artwork cache.
+  - Limit requests, redirects, time, response size, decoder allocation and normalized image dimensions.
+  - Reuse metadata offline; delay retries of failed resources; cancel enrichment on refresh or preference changes.
+- [x] Share artwork presentation across grid, list and game details.
+  - Fade in covers, preserve small icons' proportions, and handle missing/broken image fallbacks.
+  - Show Minecraft version badges and artwork source information.
+- [x] Add per-game cover selection/reset and persistent online-artwork/Minecraft preferences.
+- [x] Add fixtures for both Modrinth schemas, read-only queries, active versions, encoded links and Prism direct launch.
+- [x] Test cover priorities, normalization, offline reuse, cancellation, malformed/oversized images, unsafe URLs and version-specific sharing.
+- [x] Exercise public Steam, GOG, Modrinth and Mojang artwork endpoints with real image decoding/cache writes.
+- [x] Update dark/light preview screenshots, the artwork guide, provider setup and Windows instructions.
+- [ ] Validate the new Modrinth integration on native Windows with both supported database generations.
+  - Verify default/custom storage, spaces/Unicode, URI registration and command overrides.
+  - Test an already-running launcher and confirm that legacy entries clearly request profile selection.
+- [ ] Validate real Prism direct launches on Linux and Windows, including authentication/error/console prompts and post-game behavior.
+- [ ] Verify artwork on Windows offline, with proxy/certificate configurations and custom image paths.
+- [ ] Maintain the Minecraft release/drop catalog as upstream adds versions and changes metadata.
+- [ ] Add a cache size limit and an explicit artwork-cache cleanup action.
+- [ ] Add an optional stronger game-identity mapping for editions whose store titles differ across providers.
 
 ## P3 — Release quality
 
@@ -75,9 +117,10 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 
 ## Verification recorded for this pass
 
-- Linux: 28 Rust unit/integration tests pass; core and full-GUI Clippy pass with `-D warnings`.
-- Kirigami: offscreen checks cover dark/light contrast, search, favorites, filters, views, dialogs, custom games, validation, compact navigation and demo isolation.
-- Windows: native MSVC compilation, Rust tests, core Clippy and release offscreen UI checks pass in GitHub Actions. Actual launches, scaling and clean-machine deployment remain open.
+- Linux 0.3: 49 Rust unit/integration tests pass; core and full-GUI Clippy pass with `-D warnings`.
+- Kirigami: offscreen checks cover dark/light contrast, search, favorites, filters, views, dialogs, custom games, validation, compact navigation, image/icon fallback, artwork preferences and demo isolation.
+- Artwork: real Steam, GOG, Modrinth galleries and several official Minecraft drop downloads decode and cache successfully. An isolated non-demo library checks background discovery/enrichment without launching a game.
+- Windows: the previous release's native MSVC compilation, Rust tests, core Clippy and release offscreen UI checks passed in GitHub Actions. The new Modrinth/artwork code has Linux fixture coverage; native launcher validation, scaling and clean-machine deployment remain open.
 
 ## Acceptance criteria
 
@@ -86,3 +129,5 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 3. Both themes cover the UI and persist through repeated saves.
 4. Epic/GOG discovery and commands have fixtures, with real Windows launching tracked separately.
 5. This checklist distinguishes implemented work from release blockers.
+6. Modrinth uses supported launch behavior for its database generation, and Prism skips the main window while retaining launcher-managed authentication.
+7. Minecraft artwork matches the installed version; online enrichment never blocks initial library display, and cached/local artwork remains usable offline.

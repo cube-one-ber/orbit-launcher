@@ -200,18 +200,62 @@ impl Provider for Steam {
                     );
                     command.push(format!("steam://rungameid/{id}"));
                     let cache = root.join("appcache/librarycache");
-                    let mut artwork = first_art([
-                        cache.join(format!("{id}_library_600x900.jpg")),
-                        cache.join(format!("{id}_library_600x900_2x.jpg")),
-                        cache.join(format!("{id}_header.jpg")),
-                    ]);
+                    let mut artwork = custom_cover(&root, id);
+                    if artwork.is_empty() {
+                        artwork = first_art(
+                            [
+                                "library_header_2x",
+                                "library_header",
+                                "header",
+                                "library_hero",
+                                "library_600x900_2x",
+                                "library_600x900",
+                            ]
+                            .into_iter()
+                            .flat_map(|name| {
+                                ["jpg", "png", "webp", "jpeg"]
+                                    .map(|ext| cache.join(format!("{id}_{name}.{ext}")))
+                            }),
+                        );
+                    }
                     if artwork.is_empty()
                         && let Ok(entries) = fs::read_dir(cache.join(id))
                     {
-                        artwork = first_art(entries.flatten().map(|e| e.path()).filter(|p| {
-                            p.file_name()
-                                .is_some_and(|n| n.to_string_lossy().contains("library_600x900"))
-                        }));
+                        let mut covers: Vec<_> = entries
+                            .flatten()
+                            .map(|e| e.path())
+                            .filter(|p| {
+                                p.file_name().is_some_and(|n| {
+                                    [
+                                        "library_header",
+                                        "header",
+                                        "library_hero",
+                                        "library_600x900",
+                                    ]
+                                    .iter()
+                                    .any(|s| n.to_string_lossy().contains(s))
+                                }) && p.extension().is_some_and(|ext| {
+                                    ["jpg", "png", "webp", "jpeg"]
+                                        .contains(&ext.to_string_lossy().as_ref())
+                                })
+                            })
+                            .collect();
+                        covers.sort_by_key(|p| {
+                            let name = p.file_name().unwrap_or_default().to_string_lossy();
+                            (
+                                [
+                                    "library_header",
+                                    "header",
+                                    "library_hero",
+                                    "library_600x900",
+                                ]
+                                .iter()
+                                .position(|s| name.contains(s))
+                                .unwrap_or(9),
+                                name.to_string(),
+                            )
+                        });
+                        artwork = first_art(covers);
                     }
                     games.push(Game {
                         id: format!("steam:{id}"),
@@ -219,6 +263,11 @@ impl Provider for Steam {
                         provider: "steam".into(),
                         subtitle: "Steam · Installed".into(),
                         artwork,
+                        art: Artwork {
+                            remote: crate::artwork::steam_urls(id),
+                            ..Default::default()
+                        },
+                        launch_notice: String::new(),
                         command,
                         launch_uri: None,
                         directory: None,
@@ -234,6 +283,23 @@ impl Provider for Steam {
         }
         (games, errors)
     }
+}
+fn custom_cover(root: &Path, id: &str) -> String {
+    let Ok(users) = fs::read_dir(root.join("userdata")) else {
+        return String::new();
+    };
+    let mut grids: Vec<_> = users
+        .flatten()
+        .map(|u| u.path().join("config/grid"))
+        .collect();
+    grids.sort();
+    first_art(grids.into_iter().flat_map(|dir| {
+        [format!("{id}_hero"), id.into(), format!("{id}p")]
+            .into_iter()
+            .flat_map(move |name| {
+                ["png", "jpg", "webp"].map(|ext| dir.join(format!("{name}.{ext}")))
+            })
+    }))
 }
 #[cfg(test)]
 mod tests {

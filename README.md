@@ -12,7 +12,8 @@ A local-first game and application launcher written in **Rust**, with a native *
 | --- | --- | --- | --- |
 | Steam | Yes | Implemented | Installed manifests, extra libraries, cached covers; native/Flatpak on Linux, registry/executable discovery on Windows |
 | Lutris | Yes | Unavailable | Installed games from the read-only database; native/Flatpak launching |
-| Prism Launcher | Yes | Implemented | Instances, custom directories, icons; installed and portable Windows layouts |
+| Prism Launcher | Yes | Implemented | Instances, custom directories, Minecraft update covers; direct instance launch skips the main window |
+| Modrinth Launcher | Yes | Implemented | Read-only legacy/current databases, custom data folders, installed instance versions; current instance launch links |
 | Epic Games | Unavailable | Implemented | Installed `.item` manifests; Epic protocol launching, excluding incomplete installs, DLC and engine plugins |
 | GOG Galaxy | Unavailable | Implemented | Registry game folders and `goggame-*.info`; Galaxy launching with game ID and path |
 | Custom games/apps and JSON providers | Yes | Implemented | Executable, separate arguments, optional working folder and local artwork |
@@ -51,7 +52,7 @@ Use your actual Craft path. `-Package` stages Qt/KDE dependencies and runs isola
 
 ## Your library
 
-Choose **dark or light mode**, switch between grid and list views, and adjust card size in Appearance. Search, source filters, favorites and recent launches keep the library easy to navigate. Local covers appear when available; missing covers use a quiet initials placeholder. Browse controls help configure sources and add a game or application. Invalid forms keep your input for correction.
+Choose **dark or light mode**, switch between grid and list views, and adjust card size in Appearance. Search, source filters, favorites and recent launches keep the library easy to navigate. Covers load from installed launchers and a background artwork cache. Minecraft instances use artwork for their installed game drop or update. Small application icons stay sharp instead of being stretched across cards; missing images use a quiet initials placeholder. In game details, **Choose cover** sets a local image and **Reset** restores automatic selection. Appearance includes an offline artwork toggle and a choice to prefer Modrinth modpack galleries. See the [artwork guide](docs/artwork.md) for selection, caching and extension hints. Browse controls help configure sources and add a game or application. Invalid forms keep your input for correction.
 
 The default library contains actual installed games. Sample entries appear only with `--demo`. Orbit does not download your account library or require credentials. A successful launch message confirms dispatch of the request; it does not confirm that the game reached its main menu.
 
@@ -62,10 +63,15 @@ Under **Sources**, enable integrations, add absolute paths, or set a launcher co
 | Steam | A folder containing `steamapps` |
 | Lutris | Its data directory or `pga.db` |
 | Prism | Its data directory containing `prismlauncher.cfg` and normally `instances` |
+| Modrinth | Its application data directory containing `app.db`, or `app.db` itself; custom content folders are read from its settings |
 | Epic | A manifest directory containing `.item` files |
 | GOG | A game folder or library with `goggame-*.info` in immediate game folders |
 
-Commands are JSON arrays, such as `["C:/Apps/PrismLauncher/prismlauncher.exe"]`, `["/opt/PrismLauncher.AppImage"]` or `["flatpak", "run", "org.prismlauncher.PrismLauncher"]`. Orbit appends game-specific arguments. Epic normally uses its registered URI handler; a command override receives the URI as one argument.
+Commands are JSON arrays, such as `["C:/Apps/PrismLauncher/prismlauncher.exe"]`, `["/opt/PrismLauncher.AppImage"]` or `["flatpak", "run", "org.prismlauncher.PrismLauncher"]`. Orbit appends game-specific arguments. Epic and current Modrinth instances normally use their registered URI handlers; a command override receives the URI as one argument.
+
+Prism uses `--dir <data-folder> --launch <instance-id>` to start the instance while skipping its main window. Prism still handles authentication, Java and mod loaders, and may show account or error dialogs. Existing Prism settings control console windows and reopening after the game exits.
+
+Modrinth discovery supports both legacy `profiles` and current `instances` databases, follows custom content folders, and skips unfinished or missing installations. Current builds launch via `modrinth://launch/instance/<id>`. Older builds lack direct instance launch support, so their entries show **Open launcher** and ask you to select the profile there. Configure a command override if your Linux desktop has no Modrinth URI handler.
 
 Settings live in `$XDG_CONFIG_HOME/orbit/settings.json` (normally `~/.config/orbit/settings.json`) on Linux and `%APPDATA%\Orbit\settings.json` on Windows. `ORBIT_CONFIG_DIR` overrides the directory. Writes atomically replace the file. Legacy accent-based settings retain favorites, source paths and history, and default to dark mode. Malformed settings are reported and protected from automatic overwrite; correct the file or move it aside, then restart. `--light` selects and saves light mode unless used with `--demo`.
 
@@ -75,7 +81,7 @@ Keyboard shortcuts: **Ctrl+F** search, **Ctrl+R** refresh, **Ctrl+N** add, **Ctr
 
 ### JSON providers
 
-Create a `providers` folder inside Orbit's configuration directory, add a manifest such as [`examples/local-games.json`](examples/local-games.json), and refresh. Sources can open this directory. Each provider appears in navigation and Sources and can be disabled. IDs must be unique ASCII letters, digits or hyphens; `steam`, `lutris`, `prism`, `epic`, `gog` and `custom` are reserved. Game IDs are namespaced automatically.
+Create a `providers` folder inside Orbit's configuration directory, add a manifest such as [`examples/local-games.json`](examples/local-games.json), and refresh. Sources can open this directory. Each provider appears in navigation and Sources and can be disabled. IDs must be unique ASCII letters, digits or hyphens; `steam`, `lutris`, `prism`, `modrinth`, `epic`, `gog` and `custom` are reserved. Game IDs are namespaced automatically.
 
 ```json
 {
@@ -93,11 +99,11 @@ Create a `providers` folder inside Orbit's configuration directory, add a manife
 }
 ```
 
-`artwork` accepts a local `file:///...` URL. `directory` sets the working folder. Arguments pass directly without shell evaluation. Reading a manifest does not execute it; pressing Play does. Optional `launch_uri` takes precedence over `command` and currently accepts only the Epic game-launch protocol on Windows. Most extensions should use `command`.
+`artwork` accepts a local `file:///...` URL or HTTPS image URL downloaded through Orbit’s cache. Optional `art` hints describe icons, remote covers, Minecraft versions and Modrinth projects; see the [artwork guide](docs/artwork.md). `directory` sets the working folder. Arguments pass directly without shell evaluation. Reading a manifest does not execute it; pressing Play does. Optional `launch_uri` takes precedence over `command` and accepts Epic game-launch links on Windows or Modrinth instance-launch links on Linux/Windows. Install and authentication links are rejected. Most extensions should use `command`.
 
 ### Rust providers
 
-Implement `Provider` in `src/providers/`, returning `Game` records, discovery errors and platform availability. Register it in `providers::discover`; stable IDs preserve favorites and history. Discovery runs on a worker thread and publishes results on the GUI thread. `model`, `store`, `platform` and `providers` work independently of Qt with `--no-default-features`.
+Implement `Provider` in `src/providers/`, returning `Game` records, discovery errors and platform availability. Register it in `providers::discover`; stable IDs preserve favorites and history. Discovery runs on a worker thread and publishes results on the GUI thread. `model`, `store`, `platform`, `providers` and `artwork` work independently of Qt with `--no-default-features`.
 
 QML owns presentation; [`qml/Theme.qml`](qml/Theme.qml) defines semantic colors and [`src/bridge.rs`](src/bridge.rs) exposes Rust operations through CXX-Qt.
 
@@ -124,7 +130,7 @@ scripts/check-ui.sh
 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software target/debug/orbit --demo --smoke-test
 ```
 
-Rust tests cover Steam libraries and escaped Windows paths, read-only Lutris queries, custom Prism directories, Epic/GOG fixtures, extensions, protocols, metadata migration and repeated settings replacement. Windows CI also exercises a temporary test-owned registry key. UI checks cover both palettes, search, favorites, filters, views, dialogs, custom games, validation, compact navigation and demo isolation.
+Rust tests cover Steam libraries and escaped Windows paths, read-only Lutris queries, custom Prism directories, Epic/GOG fixtures, both Modrinth schemas, direct launch arguments, artwork selection/cache/offline behavior, Minecraft version matching, extensions, protocols, metadata migration and repeated settings replacement. Windows CI also exercises a temporary test-owned registry key. UI checks cover both palettes, search, favorites, filters, views, dialogs, custom games, validation, compact navigation, image/icon error fallbacks, artwork preferences and demo isolation.
 
 The smoke test loads the Kirigami window and exits automatically. Add `--screenshot /absolute/path/preview.png` to capture the rendered page, or `--light` for its light theme. On Windows, run `scripts/check-ui.ps1 -Executable <path-to-orbit.exe>` after building. See [TODO.md](TODO.md) for native Windows, accessibility and packaging work.
 

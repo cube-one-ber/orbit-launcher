@@ -1,9 +1,13 @@
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::QString;
-use orbit_launcher::{model::*, providers, store};
+use orbit_launcher::{artwork, model::*, providers, store};
 use std::{
     pin::Pin,
-    sync::mpsc::{self, Receiver},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver},
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -26,6 +30,7 @@ pub mod qobject {
         #[qproperty(QString, preferences)]
         #[qproperty(QString, message)]
         #[qproperty(bool, busy)]
+        #[qproperty(bool, artwork_busy)]
         #[qproperty(bool, demo)]
         type Backend = super::BackendRust;
         #[qinvokable]
@@ -43,6 +48,8 @@ pub mod qobject {
         #[qinvokable]
         fn remove_game(self: Pin<&mut Self>, id: &QString);
         #[qinvokable]
+        fn set_artwork(self: Pin<&mut Self>, id: &QString, path: &QString) -> bool;
+        #[qinvokable]
         fn config_path(&self) -> QString;
         #[qinvokable]
         fn local_path(&self, url: &QString) -> QString;
@@ -55,10 +62,13 @@ pub struct BackendRust {
     preferences: QString,
     message: QString,
     busy: bool,
+    artwork_busy: bool,
     demo: bool,
     settings: Settings,
     library: Library,
     receiver: Option<Receiver<Library>>,
+    artwork_receiver: Option<Receiver<artwork::ArtworkUpdate>>,
+    artwork_cancel: Option<Arc<AtomicBool>>,
     rescan: bool,
     load_error: Option<String>,
 }
@@ -79,12 +89,22 @@ impl Default for BackendRust {
             preferences: QString::from(serde_json::to_string(&settings).unwrap().as_str()),
             message: QString::from(error.as_deref().unwrap_or("")),
             busy: false,
+            artwork_busy: false,
             demo,
             settings,
             library: Library::default(),
             receiver: None,
+            artwork_receiver: None,
+            artwork_cancel: None,
             rescan: false,
             load_error: error,
+        }
+    }
+}
+impl Drop for BackendRust {
+    fn drop(&mut self) {
+        if let Some(cancel) = &self.artwork_cancel {
+            cancel.store(true, Ordering::Relaxed);
         }
     }
 }
@@ -122,6 +142,7 @@ impl qobject::Backend {
             self.as_mut().rust_mut().rescan = true;
             return;
         }
+        self.as_mut().cancel_artwork();
         if *self.demo() {
             self.as_mut().rust_mut().library = demo_library();
             let settings = self.rust().settings.clone();
@@ -131,6 +152,11 @@ impl qobject::Backend {
                 .games
                 .extend(settings.custom_games.clone());
             providers::decorate(&mut self.as_mut().rust_mut().library, &settings);
+            artwork::apply_cached(
+                &mut self.as_mut().rust_mut().library,
+                &settings,
+                store::cache_dir().join("artwork"),
+            );
             self.publish();
             return;
         }
@@ -139,7 +165,9 @@ impl qobject::Backend {
         let (tx, rx) = mpsc::channel();
         self.as_mut().rust_mut().receiver = Some(rx);
         std::thread::spawn(move || {
-            let _ = tx.send(providers::discover(&settings, &store::config_dir()));
+            let mut library = providers::discover(&settings, &store::config_dir());
+            artwork::apply_cached(&mut library, &settings, store::cache_dir().join("artwork"));
+            let _ = tx.send(library);
         });
     }
     pub fn poll(mut self: Pin<&mut Self>) {
@@ -153,18 +181,83 @@ impl qobject::Backend {
                 self.as_mut().publish();
                 if self.rust().rescan {
                     self.as_mut().rust_mut().rescan = false;
-                    self.refresh();
+                    self.as_mut().refresh();
+                } else if self.rust().settings.online_artwork {
+                    self.as_mut().start_artwork();
                 }
             }
             Some(Err(mpsc::TryRecvError::Disconnected)) => {
                 self.as_mut().rust_mut().receiver = None;
                 self.as_mut().set_busy(false);
-                self.set_message(QString::from(
+                self.as_mut().set_message(QString::from(
                     "Library scan stopped unexpectedly. Try refreshing.",
                 ));
             }
             _ => (),
         }
+        let mut changed = false;
+        for _ in 0..32 {
+            let result = self
+                .rust()
+                .artwork_receiver
+                .as_ref()
+                .map(|rx| rx.try_recv());
+            match result {
+                Some(Ok(update)) => {
+                    if let Some(game) = self
+                        .as_mut()
+                        .rust_mut()
+                        .library
+                        .games
+                        .iter_mut()
+                        .find(|g| g.id == update.id)
+                    {
+                        game.artwork = update.artwork;
+                        game.art = update.art;
+                        changed = true;
+                    }
+                }
+                Some(Err(mpsc::TryRecvError::Disconnected)) => {
+                    self.as_mut().rust_mut().artwork_receiver = None;
+                    self.as_mut().rust_mut().artwork_cancel = None;
+                    self.as_mut().set_artwork_busy(false);
+                    break;
+                }
+                _ => break,
+            }
+        }
+        if changed {
+            artwork::share_covers(&mut self.as_mut().rust_mut().library.games);
+            self.publish();
+        }
+    }
+    fn cancel_artwork(mut self: Pin<&mut Self>) {
+        if let Some(cancel) = self.as_mut().rust_mut().artwork_cancel.take() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        self.as_mut().rust_mut().artwork_receiver = None;
+        self.set_artwork_busy(false);
+    }
+    fn start_artwork(mut self: Pin<&mut Self>) {
+        let games = self.rust().library.games.clone();
+        if games.is_empty() {
+            return;
+        }
+        let settings = self.rust().settings.clone();
+        let (tx, rx) = mpsc::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.as_mut().rust_mut().artwork_receiver = Some(rx);
+        self.as_mut().rust_mut().artwork_cancel = Some(cancel.clone());
+        self.as_mut().set_artwork_busy(true);
+        std::thread::spawn(move || {
+            artwork::download(
+                games,
+                settings,
+                store::cache_dir().join("artwork"),
+                cancel,
+                tx,
+            )
+        });
     }
     pub fn favorite(mut self: Pin<&mut Self>, id: &QString) {
         let id = id.to_string();
@@ -196,6 +289,10 @@ impl qobject::Backend {
         };
         match providers::launch(&game) {
             Ok(()) => {
+                if !game.launch_notice.is_empty() {
+                    self.set_message(QString::from(game.launch_notice.as_str()));
+                    return;
+                }
                 let mut settings = self.rust().settings.clone();
                 settings.played.insert(
                     game.id.clone(),
@@ -224,6 +321,15 @@ impl qobject::Backend {
                 settings.theme = serde_json::from_value(v.clone())
                     .map_err(|_| "Theme must be dark or light".to_string())?;
             }
+            if let Some(v) = value.get("online_artwork") {
+                settings.online_artwork = v
+                    .as_bool()
+                    .ok_or("Artwork download preference must be true or false")?;
+            }
+            if let Some(v) = value.get("minecraft_artwork") {
+                settings.minecraft_artwork = serde_json::from_value(v.clone())
+                    .map_err(|_| "Minecraft artwork must be updates or modpacks")?;
+            }
             if let Some(v) = value.get("density").and_then(|v| v.as_str())
                 && ["comfortable", "compact"].contains(&v)
             {
@@ -251,7 +357,9 @@ impl qobject::Backend {
         });
         match result {
             Ok(s) => {
-                let sources_changed = s.sources != self.rust().settings.sources;
+                let sources_changed = s.sources != self.rust().settings.sources
+                    || s.online_artwork != self.rust().settings.online_artwork
+                    || s.minecraft_artwork != self.rust().settings.minecraft_artwork;
                 if self.as_mut().commit(s) {
                     if sources_changed {
                         self.as_mut().refresh();
@@ -298,6 +406,13 @@ impl qobject::Backend {
                     provider: "custom".into(),
                     subtitle: "Custom game".into(),
                     artwork,
+                    art: Artwork {
+                        icon: providers::first_art([
+                            std::path::Path::new(&command[0]).with_extension("ico")
+                        ]),
+                        ..Default::default()
+                    },
+                    launch_notice: String::new(),
                     command,
                     directory,
                     launch_uri: None,
@@ -322,9 +437,39 @@ impl qobject::Backend {
     pub fn remove_game(mut self: Pin<&mut Self>, id: &QString) {
         let mut settings = self.rust().settings.clone();
         settings.custom_games.retain(|g| g.id != id.to_string());
+        settings.artwork_overrides.remove(&id.to_string());
+        settings.favorites.retain(|g| g != &id.to_string());
+        settings.played.remove(&id.to_string());
         if self.as_mut().commit(settings) {
             self.refresh();
         }
+    }
+    pub fn set_artwork(mut self: Pin<&mut Self>, id: &QString, path: &QString) -> bool {
+        let id = id.to_string();
+        if !self.rust().library.games.iter().any(|g| g.id == id) {
+            return false;
+        }
+        let path = path.to_string();
+        if !path.is_empty()
+            && (!std::path::Path::new(&path).is_absolute()
+                || !std::path::Path::new(&path).is_file())
+        {
+            self.set_message(QString::from(
+                "Choose an existing local image for the cover.",
+            ));
+            return false;
+        }
+        let mut settings = self.rust().settings.clone();
+        if path.is_empty() {
+            settings.artwork_overrides.remove(&id);
+        } else {
+            settings.artwork_overrides.insert(id, path);
+        }
+        if !self.as_mut().commit(settings) {
+            return false;
+        }
+        self.refresh();
+        true
     }
     pub fn local_path(&self, url: &QString) -> QString {
         QString::from(
@@ -369,12 +514,17 @@ fn demo_library() -> Library {
             "steam",
             "Descend into the forgotten kingdom",
         ),
-        ("Minecraft", "prism", "Your next world starts here"),
+        ("Minecraft", "prism", "Minecraft 1.21.5 · Spring to Life"),
         ("Celeste", "steam", "Find your way to the summit"),
         ("Hades", "lutris", "Defy the god of the dead"),
         ("Stardew Valley", "steam", "Make yourself at home"),
         ("No Man’s Sky", "steam", "An infinite universe to explore"),
         ("Disco Elysium", "lutris", "Every choice leaves a mark"),
+        (
+            "Fabulously Optimized",
+            "modrinth",
+            "Minecraft 1.21.5 · Modrinth Launcher",
+        ),
     ]
     .into_iter()
     .enumerate()
@@ -384,6 +534,22 @@ fn demo_library() -> Library {
         provider: provider.into(),
         subtitle: subtitle.into(),
         artwork: String::new(),
+        art: Artwork {
+            minecraft_version: [2, 8].contains(&i).then(|| "1.21.5".into()),
+            modrinth_project: (i == 8).then(|| "1KVo5zza".into()),
+            remote: artwork::steam_urls(match i {
+                0 => "578650",
+                1 => "367520",
+                3 => "504230",
+                4 => "1145360",
+                5 => "413150",
+                6 => "275850",
+                7 => "632470",
+                _ => "",
+            }),
+            ..Default::default()
+        },
+        launch_notice: String::new(),
         command: vec![],
         launch_uri: None,
         directory: None,
@@ -397,6 +563,7 @@ fn demo_library() -> Library {
             ("steam", "Steam", 5),
             ("lutris", "Lutris", 2),
             ("prism", "Prism Launcher", 1),
+            ("modrinth", "Modrinth Launcher", 1),
         ]
         .map(|(id, name, count)| ProviderStatus {
             id: id.into(),

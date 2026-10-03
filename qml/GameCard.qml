@@ -17,18 +17,18 @@ Controls.AbstractButton {
         Behavior on color { ColorAnimation { duration: 120 } }
     }
     contentItem: Item {
-        Rectangle {
+        GameArtwork {
             id: cover
+            game: card.game; theme: card.theme
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
             height: parent.height - 78; radius: 7
-            color: card.theme.elevated; clip: true
-            Controls.Label {
-                anchors.centerIn: parent
-                text: card.game.title.split(" ").filter(w=>w.length).slice(0,2).map(w=>w[0]).join("").toUpperCase()
-                color: card.theme.faint; opacity: 0.6
-                font { pixelSize: 32; weight: Font.Medium; letterSpacing: 3 }
+            Rectangle {
+                anchors { top: parent.top; left: parent.left; margins: 7 }
+                visible: card.game.art && card.game.art.minecraft_version !== null && card.game.art.minecraft_version !== undefined
+                width: versionLabel.implicitWidth + 14; height: 26; radius: 5
+                color: card.theme.surface; opacity: 0.94
+                Controls.Label { id: versionLabel; anchors.centerIn: parent; text: card.game.art ? card.game.art.minecraft_version || "" : ""; color: card.theme.muted; font.pixelSize: 10 }
             }
-            Image { id: art; anchors.fill: parent; source: card.game.artwork; asynchronous: true; fillMode: Image.PreserveAspectCrop }
             Controls.AbstractButton {
                 anchors { top: parent.top; right: parent.right; margins: 7 }
                 width: 30; height: 30; hoverEnabled: true
@@ -42,7 +42,7 @@ Controls.AbstractButton {
             Controls.AbstractButton {
                 anchors.centerIn: parent; width: 44; height: 44
                 visible: card.hovered || card.activeFocus || activeFocus
-                Accessible.name: "Launch " + card.game.title
+                Accessible.name: (card.game.launch_notice ? "Open launcher for " : "Launch ") + card.game.title
                 background: Rectangle { color: card.theme.accent; radius: 22 }
                 contentItem: Item { AppIcon { name: "play"; ink: card.theme.accentText; anchors.centerIn: parent; width: 21; height: 21 } }
                 onClicked: card.playRequested()
@@ -52,7 +52,7 @@ Controls.AbstractButton {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 15 }
             spacing: 7
             Controls.Label { width: parent.width; text: card.game.title; elide: Text.ElideRight; color: card.theme.text; font { pixelSize: 14; weight: Font.DemiBold } }
-            Controls.Label { width: parent.width; text: ({steam:"Steam",prism:"Prism Launcher",lutris:"Lutris",epic:"Epic Games",gog:"GOG Galaxy",custom:"Custom"})[card.game.provider] || card.game.provider; color: card.theme.muted; font.pixelSize: 12 }
+            Controls.Label { width: parent.width; text: ({steam:"Steam",prism:"Prism Launcher",modrinth:"Modrinth Launcher",lutris:"Lutris",epic:"Epic Games",gog:"GOG Galaxy",custom:"Custom"})[card.game.provider] || card.game.provider; color: card.theme.muted; font.pixelSize: 12; elide: Text.ElideRight }
         }
     }
 }

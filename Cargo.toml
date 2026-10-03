@@ -1,6 +1,6 @@
 [package]
 name = "orbit-launcher"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 description = "A customizable Rust and Kirigami game launcher"
@@ -15,6 +15,9 @@ serde_json = "1"
 rusqlite = { version = "0.38", features = ["bundled"] }
 url = "2"
 tempfile = "3"
+ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "ico", "gif"] }
+sha2 = "0.10"
 cxx = { version = "1", optional = true }
 cxx-qt = { version = "0.10", optional = true }
 cxx-qt-lib = { version = "0.10", features = ["qt_gui", "qt_qml"], optional = true }

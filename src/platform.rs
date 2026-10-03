@@ -83,6 +83,46 @@ impl Platform {
             ]
         }
     }
+    pub fn modrinth_roots(&self) -> Vec<PathBuf> {
+        let data = if self.os == Os::Windows {
+            self.roaming.clone()
+        } else {
+            crate::store::data_home()
+        };
+        let mut roots: Vec<_> = ["ModrinthApp", "com.modrinth.theseus"]
+            .into_iter()
+            .map(|name| data.join(name))
+            .collect();
+        if self.os == Os::Linux {
+            for app in ["com.modrinth.ModrinthApp", "com.modrinth.theseus"] {
+                roots.extend(
+                    ["ModrinthApp", "com.modrinth.theseus"]
+                        .map(|name| self.home.join(".var/app").join(app).join("data").join(name)),
+                );
+            }
+        }
+        if let Some(dir) = env::var_os("THESEUS_CONFIG_DIR") {
+            roots.insert(0, dir.into());
+        }
+        roots
+    }
+    pub fn modrinth_command(&self) -> String {
+        if self.os == Os::Linux {
+            return "modrinth-app".into();
+        }
+        executable(
+            ["Modrinth App", "ModrinthApp", "Programs/Modrinth App"]
+                .into_iter()
+                .map(|dir| self.local.join(dir).join("Modrinth App.exe"))
+                .chain(
+                    self.program_files
+                        .iter()
+                        .map(|dir| dir.join("Modrinth App/Modrinth App.exe")),
+                )
+                .chain(find_on_path("Modrinth App.exe")),
+            "Modrinth App.exe",
+        )
+    }
     pub fn prism_executables(&self) -> Vec<PathBuf> {
         std::iter::once(self.local.join("Programs/PrismLauncher/prismlauncher.exe"))
             .chain(
@@ -157,11 +197,28 @@ fn steam_registry_paths() -> Vec<PathBuf> {
 }
 
 /// Only recognized game-launch protocols are dispatched. No command interpreter is involved.
-pub fn open_game_uri(uri: &str) -> Result<(), String> {
+pub fn validate_game_uri(uri: &str) -> Result<url::Url, String> {
     let parsed = url::Url::parse(uri).map_err(|e| e.to_string())?;
-    if parsed.scheme() != "com.epicgames.launcher" || uri.contains('\0') {
+    let modrinth = parsed.scheme() == "modrinth"
+        && parsed.host_str() == Some("launch")
+        && parsed.path_segments().is_some_and(|mut parts| {
+            parts.next() == Some("instance")
+                && parts.next().is_some_and(|id| !id.is_empty())
+                && parts.next().is_none()
+        });
+    if (parsed.scheme() != "com.epicgames.launcher" && !modrinth)
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.port().is_some()
+        || parsed.fragment().is_some()
+        || uri.contains('\0')
+    {
         return Err("Unsupported game launch protocol".into());
     }
+    Ok(parsed)
+}
+pub fn open_game_uri(uri: &str) -> Result<(), String> {
+    let parsed = validate_game_uri(uri)?;
     #[cfg(windows)]
     {
         use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
@@ -179,8 +236,13 @@ pub fn open_game_uri(uri: &str) -> Result<(), String> {
             )
         } as isize;
         if result <= 32 {
+            let launcher = if parsed.scheme() == "modrinth" {
+                "Modrinth Launcher"
+            } else {
+                "Epic Games Launcher"
+            };
             Err(format!(
-                "Windows could not open Epic Games (error {result}). Install the Epic Games Launcher or configure its executable."
+                "Windows could not open {launcher} (error {result}). Install it or configure its executable in Sources."
             ))
         } else {
             Ok(())
@@ -188,7 +250,22 @@ pub fn open_game_uri(uri: &str) -> Result<(), String> {
     }
     #[cfg(not(windows))]
     {
-        Err("This game requires its Windows launcher.".into())
+        if parsed.scheme() != "modrinth" {
+            return Err("This game requires its Windows launcher.".into());
+        }
+        let mut child = std::process::Command::new("xdg-open")
+            .arg(uri)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| {
+                format!("Could not open Modrinth Launcher: {e}. Configure its command in Sources.")
+            })?;
+        std::thread::spawn(move || {
+            let _ = child.wait();
+        });
+        Ok(())
     }
 }
 
@@ -249,6 +326,16 @@ mod tests {
         assert_eq!(
             platform.prism_roots()[0],
             PathBuf::from("D:/Roaming Profile/PrismLauncher")
+        );
+        assert!(
+            platform
+                .modrinth_roots()
+                .contains(&PathBuf::from("D:/Roaming Profile/ModrinthApp"))
+        );
+        assert!(
+            platform
+                .modrinth_roots()
+                .contains(&PathBuf::from("D:/Roaming Profile/com.modrinth.theseus"))
         );
         assert!(
             platform

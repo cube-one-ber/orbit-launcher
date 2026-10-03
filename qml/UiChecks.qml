@@ -7,7 +7,10 @@ Item {
     required property var backendObject
     property bool running: false
     property int step: 0
+    readonly property string testImage: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNwTNr4HwAEkAJU0oHd0AAAAABJRU5ErkJggg=="
     visible: false
+    Theme { id: probeTheme; dark: checks.host.darkMode }
+    GameArtwork { id: artworkProbe; width: 200; height: 120; theme: probeTheme; game: ({title:"Fixture app", provider:"custom", artwork:checks.testImage, art:{kind:"icon",icon:""}}) }
     function verify(condition, message) {
         if (!condition) throw new Error(message);
     }
@@ -20,7 +23,8 @@ Item {
                 switch (checks.step++) {
                 case 0:
                     checks.verify(backend.demo, "UI checks require --demo");
-                    checks.verify(app.library.games.length === 8, "Demo library loaded");
+                    checks.verify(app.library.games.length === 9, "Demo library loaded");
+                    checks.verify(app.library.providers.some(p=>p.id === "modrinth"), "Modrinth is available in navigation");
                     app.query = "hollow";
                     break;
                 case 1:
@@ -69,7 +73,7 @@ Item {
                     backend.configure(JSON.stringify({view:"grid"}));
                     break;
                 case 9:
-                    checks.verify(app.library.games.length === 8, "Custom game removal works");
+                    checks.verify(app.library.games.length === 9, "Custom game removal works");
                     checks.verify(app.compactNavigation, "Narrow window uses compact navigation");
                     app.changeSection("appearance");
                     app.openSource("steam");
@@ -80,7 +84,21 @@ Item {
                     break;
                 case 11:
                     app.closeAdd();
-                    console.log("ORBIT_UI_TEST_PASS: dark/light contrast, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
+                    checks.verify(artworkProbe.hasImage && artworkProbe.iconMode, "Small icons load without cover cropping");
+                    artworkProbe.game = {title:"Fixture app", provider:"custom", artwork:"file:///orbit-ui-check-intentionally-missing.png", art:{kind:"cover",icon:checks.testImage}};
+                    break;
+                case 12:
+                    checks.verify(artworkProbe.hasImage && artworkProbe.fallbackUsed && artworkProbe.iconMode, "Broken covers fall back to an icon");
+                    artworkProbe.game = {title:"Fixture app", provider:"custom", artwork:checks.testImage, art:{kind:"cover",icon:""}};
+                    checks.verify(!backend.set_artwork("demo:2", "missing-cover.png"), "Cover picker rejects missing images");
+                    checks.verify(!backend.configure(JSON.stringify({minecraft_artwork:"invalid"})), "Invalid artwork preferences are rejected");
+                    backend.configure(JSON.stringify({online_artwork:false, minecraft_artwork:"modpacks"}));
+                    break;
+                case 13:
+                    checks.verify(artworkProbe.hasImage && !artworkProbe.iconMode && !artworkProbe.fallbackUsed, "New covers replace an icon fallback");
+                    checks.verify(app.prefs.online_artwork === false, "Offline artwork preference updates");
+                    checks.verify(app.prefs.minecraft_artwork === "modpacks", "Minecraft artwork preference updates");
+                    console.log("ORBIT_UI_TEST_PASS: dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
                     checks.running = false;
                     Qt.quit();
                     break;

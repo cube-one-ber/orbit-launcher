@@ -117,10 +117,18 @@ impl Provider for Epic {
                             title: m.display_name,
                             provider: "epic".into(),
                             subtitle: "Epic Games".into(),
-                            artwork: first_art([
-                                m.install_location.join("cover.jpg"),
-                                m.install_location.join("cover.png"),
-                            ]),
+                            artwork: crate::artwork::local_cover(&m.install_location),
+                            art: Artwork {
+                                icon: first_art([
+                                    m.install_location
+                                        .join(&m.launch_executable)
+                                        .with_extension("ico"),
+                                    m.install_location.join("icon.png"),
+                                    m.install_location.join("icon.ico"),
+                                ]),
+                                ..Default::default()
+                            },
+                            launch_notice: String::new(),
                             command,
                             launch_uri,
                             directory: None,

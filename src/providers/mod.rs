@@ -2,6 +2,7 @@
 mod epic;
 mod gog;
 mod lutris;
+mod modrinth;
 mod prism;
 mod steam;
 use crate::{model::*, store};
@@ -12,7 +13,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
-pub use {epic::Epic, gog::Gog, lutris::Lutris, prism::Prism, steam::Steam};
+pub use {epic::Epic, gog::Gog, lutris::Lutris, modrinth::Modrinth, prism::Prism, steam::Steam};
 
 pub trait Provider: Send {
     fn id(&self) -> &str;
@@ -92,13 +93,16 @@ pub fn discover(settings: &Settings, config_dir: &Path) -> Library {
         Box::new(Steam),
         Box::new(Lutris),
         Box::new(Prism),
+        Box::new(Modrinth),
         Box::new(Epic),
         Box::new(Gog),
     ];
     let mut library = Library::default();
-    let mut provider_ids: HashSet<String> = ["steam", "lutris", "prism", "epic", "gog", "custom"]
-        .map(String::from)
-        .into();
+    let mut provider_ids: HashSet<String> = [
+        "steam", "lutris", "prism", "modrinth", "epic", "gog", "custom",
+    ]
+    .map(String::from)
+    .into();
     if let Ok(entries) = fs::read_dir(config_dir.join("providers")) {
         let mut files: Vec<_> = entries
             .flatten()
