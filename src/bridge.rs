@@ -1,0 +1,412 @@
+use cxx_qt::CxxQtType;
+use cxx_qt_lib::QString;
+use orbit_launcher::{model::*, providers, store};
+use std::{
+    pin::Pin,
+    sync::mpsc::{self, Receiver},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+#[cxx_qt::bridge]
+pub mod qobject {
+    unsafe extern "C++" {
+        include!("cxx-qt-lib/qstring.h");
+        type QString = cxx_qt_lib::QString;
+        include!("QtQuickControls2/QQuickStyle");
+        type QQuickStyle;
+        #[Self = "QQuickStyle"]
+        #[rust_name = "set_style"]
+        fn setStyle(style: &QString);
+
+    }
+    extern "RustQt" {
+        #[qobject]
+        #[qml_element]
+        #[qproperty(QString, snapshot)]
+        #[qproperty(QString, preferences)]
+        #[qproperty(QString, message)]
+        #[qproperty(bool, busy)]
+        #[qproperty(bool, demo)]
+        type Backend = super::BackendRust;
+        #[qinvokable]
+        fn refresh(self: Pin<&mut Self>);
+        #[qinvokable]
+        fn poll(self: Pin<&mut Self>);
+        #[qinvokable]
+        fn launch(self: Pin<&mut Self>, id: &QString);
+        #[qinvokable]
+        fn favorite(self: Pin<&mut Self>, id: &QString);
+        #[qinvokable]
+        fn configure(self: Pin<&mut Self>, json: &QString) -> bool;
+        #[qinvokable]
+        fn add_game(self: Pin<&mut Self>, json: &QString) -> bool;
+        #[qinvokable]
+        fn remove_game(self: Pin<&mut Self>, id: &QString);
+        #[qinvokable]
+        fn config_path(&self) -> QString;
+        #[qinvokable]
+        fn local_path(&self, url: &QString) -> QString;
+        #[qinvokable]
+        fn prepare_config(self: Pin<&mut Self>) -> QString;
+    }
+}
+pub struct BackendRust {
+    snapshot: QString,
+    preferences: QString,
+    message: QString,
+    busy: bool,
+    demo: bool,
+    settings: Settings,
+    library: Library,
+    receiver: Option<Receiver<Library>>,
+    rescan: bool,
+    load_error: Option<String>,
+}
+impl Default for BackendRust {
+    fn default() -> Self {
+        let demo = std::env::args().any(|arg| arg == "--demo");
+        let stored = if demo {
+            Ok(Settings::default())
+        } else {
+            store::load(&store::config_dir())
+        };
+        let (settings, error) = match stored {
+            Ok(s) => (s, None),
+            Err(e) => (Settings::default(), Some(e)),
+        };
+        Self {
+            snapshot: QString::from("{\"games\":[],\"providers\":[]}"),
+            preferences: QString::from(serde_json::to_string(&settings).unwrap().as_str()),
+            message: QString::from(error.as_deref().unwrap_or("")),
+            busy: false,
+            demo,
+            settings,
+            library: Library::default(),
+            receiver: None,
+            rescan: false,
+            load_error: error,
+        }
+    }
+}
+impl qobject::Backend {
+    fn publish(mut self: Pin<&mut Self>) {
+        let snapshot = serde_json::to_string(&self.rust().library).unwrap();
+        let settings = serde_json::to_string(&self.rust().settings).unwrap();
+        self.as_mut().set_snapshot(QString::from(snapshot.as_str()));
+        self.as_mut()
+            .set_preferences(QString::from(settings.as_str()));
+    }
+    fn commit(mut self: Pin<&mut Self>, settings: Settings) -> bool {
+        // Never replace a malformed settings file with defaults silently.
+        if let Some(error) = self.rust().load_error.clone() {
+            self.as_mut().set_message(QString::from(
+                format!("Settings are read-only until the invalid file is repaired: {error}")
+                    .as_str(),
+            ));
+            return false;
+        }
+        if !*self.demo()
+            && let Err(e) = store::save(&store::config_dir(), &settings)
+        {
+            self.as_mut().set_message(QString::from(
+                format!("Could not save settings: {e}").as_str(),
+            ));
+            return false;
+        }
+        self.as_mut().rust_mut().settings = settings;
+        self.publish();
+        true
+    }
+    pub fn refresh(mut self: Pin<&mut Self>) {
+        if *self.busy() {
+            self.as_mut().rust_mut().rescan = true;
+            return;
+        }
+        if *self.demo() {
+            self.as_mut().rust_mut().library = demo_library();
+            let settings = self.rust().settings.clone();
+            self.as_mut()
+                .rust_mut()
+                .library
+                .games
+                .extend(settings.custom_games.clone());
+            providers::decorate(&mut self.as_mut().rust_mut().library, &settings);
+            self.publish();
+            return;
+        }
+        self.as_mut().set_busy(true);
+        let settings = self.rust().settings.clone();
+        let (tx, rx) = mpsc::channel();
+        self.as_mut().rust_mut().receiver = Some(rx);
+        std::thread::spawn(move || {
+            let _ = tx.send(providers::discover(&settings, &store::config_dir()));
+        });
+    }
+    pub fn poll(mut self: Pin<&mut Self>) {
+        let result = self.rust().receiver.as_ref().map(|rx| rx.try_recv());
+        match result {
+            Some(Ok(mut library)) => {
+                providers::decorate(&mut library, &self.rust().settings);
+                self.as_mut().rust_mut().library = library;
+                self.as_mut().rust_mut().receiver = None;
+                self.as_mut().set_busy(false);
+                self.as_mut().publish();
+                if self.rust().rescan {
+                    self.as_mut().rust_mut().rescan = false;
+                    self.refresh();
+                }
+            }
+            Some(Err(mpsc::TryRecvError::Disconnected)) => {
+                self.as_mut().rust_mut().receiver = None;
+                self.as_mut().set_busy(false);
+                self.set_message(QString::from(
+                    "Library scan stopped unexpectedly. Try refreshing.",
+                ));
+            }
+            _ => (),
+        }
+    }
+    pub fn favorite(mut self: Pin<&mut Self>, id: &QString) {
+        let id = id.to_string();
+        let mut settings = self.rust().settings.clone();
+        if settings.favorites.contains(&id) {
+            settings.favorites.retain(|x| x != &id);
+        } else {
+            settings.favorites.push(id);
+        }
+        if self.as_mut().commit(settings.clone()) {
+            providers::decorate(&mut self.as_mut().rust_mut().library, &settings);
+            self.publish();
+        }
+    }
+    pub fn launch(mut self: Pin<&mut Self>, id: &QString) {
+        if *self.demo() {
+            self.set_message(QString::from("Preview mode · Launching is disabled. Run Orbit without --demo to use your library."));
+            return;
+        }
+        let Some(game) = self
+            .rust()
+            .library
+            .games
+            .iter()
+            .find(|g| g.id == id.to_string())
+            .cloned()
+        else {
+            return;
+        };
+        match providers::launch(&game) {
+            Ok(()) => {
+                let mut settings = self.rust().settings.clone();
+                settings.played.insert(
+                    game.id.clone(),
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs(),
+                );
+                if self.as_mut().commit(settings.clone()) {
+                    providers::decorate(&mut self.as_mut().rust_mut().library, &settings);
+                    self.as_mut().publish();
+                    self.set_message(QString::from(
+                        format!("Launch request sent for {}", game.title).as_str(),
+                    ));
+                }
+            }
+            Err(e) => self.set_message(QString::from(e.as_str())),
+        }
+    }
+    pub fn configure(mut self: Pin<&mut Self>, json: &QString) -> bool {
+        // Only expose appearance and sources here; favorite/history/custom edits have separate APIs.
+        let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json.to_string());
+        let result = parsed.map_err(|e| e.to_string()).and_then(|value| {
+            let mut settings = self.rust().settings.clone();
+            if let Some(v) = value.get("theme") {
+                settings.theme = serde_json::from_value(v.clone())
+                    .map_err(|_| "Theme must be dark or light".to_string())?;
+            }
+            if let Some(v) = value.get("density").and_then(|v| v.as_str())
+                && ["comfortable", "compact"].contains(&v)
+            {
+                settings.density = v.into();
+            }
+            if let Some(v) = value.get("view").and_then(|v| v.as_str())
+                && ["grid", "list"].contains(&v)
+            {
+                settings.view = v.into();
+            }
+            if let Some(v) = value.get("sources") {
+                settings.sources = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+                if settings
+                    .sources
+                    .values()
+                    .any(|source| source.paths.iter().any(|p| !p.is_absolute()))
+                {
+                    return Err(
+                        "Library paths must be absolute (for example C:/Games or /mnt/games)."
+                            .into(),
+                    );
+                }
+            }
+            Ok(settings)
+        });
+        match result {
+            Ok(s) => {
+                let sources_changed = s.sources != self.rust().settings.sources;
+                if self.as_mut().commit(s) {
+                    if sources_changed {
+                        self.as_mut().refresh();
+                    }
+                    return true;
+                }
+            }
+            Err(e) => self.set_message(QString::from(format!("Invalid settings: {e}").as_str())),
+        }
+        false
+    }
+    pub fn add_game(mut self: Pin<&mut Self>, json: &QString) -> bool {
+        let result = serde_json::from_str::<serde_json::Value>(&json.to_string())
+            .map_err(|e| e.to_string())
+            .and_then(|v| {
+                let title = v["title"].as_str().unwrap_or("").trim();
+                let command: Vec<String> =
+                    serde_json::from_value(v["command"].clone()).map_err(|e| e.to_string())?;
+                if title.is_empty() || command.first().is_none_or(|s| s.trim().is_empty()) {
+                    return Err("A title and executable are required.".into());
+                }
+                let artwork = v["artwork"].as_str().unwrap_or("");
+                let artwork = if artwork.is_empty() {
+                    String::new()
+                } else {
+                    providers::file_url(std::path::Path::new(artwork))
+                };
+                let directory = v["directory"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .map(std::path::PathBuf::from);
+                if directory.as_ref().is_some_and(|p| !p.is_dir()) {
+                    return Err("Working directory does not exist.".into());
+                }
+                Ok(Game {
+                    id: format!(
+                        "custom:{}",
+                        SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_nanos()
+                    ),
+                    title: title.into(),
+                    provider: "custom".into(),
+                    subtitle: "Custom game".into(),
+                    artwork,
+                    command,
+                    directory,
+                    launch_uri: None,
+                    favorite: false,
+                    last_played: 0,
+                })
+            });
+        match result {
+            Ok(game) => {
+                let mut settings = self.rust().settings.clone();
+                settings.custom_games.push(game);
+                if self.as_mut().commit(settings) {
+                    self.as_mut().refresh();
+                    self.set_message(QString::from("Custom game added to your library."));
+                    return true;
+                }
+            }
+            Err(e) => self.set_message(QString::from(e.as_str())),
+        }
+        false
+    }
+    pub fn remove_game(mut self: Pin<&mut Self>, id: &QString) {
+        let mut settings = self.rust().settings.clone();
+        settings.custom_games.retain(|g| g.id != id.to_string());
+        if self.as_mut().commit(settings) {
+            self.refresh();
+        }
+    }
+    pub fn local_path(&self, url: &QString) -> QString {
+        QString::from(
+            url::Url::parse(&url.to_string())
+                .ok()
+                .and_then(|u| u.to_file_path().ok())
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default()
+                .as_str(),
+        )
+    }
+    pub fn config_path(&self) -> QString {
+        QString::from(store::config_dir().to_string_lossy().as_ref())
+    }
+    pub fn prepare_config(mut self: Pin<&mut Self>) -> QString {
+        if *self.demo() {
+            self.set_message(QString::from(
+                "Run Orbit without --demo to manage provider files.",
+            ));
+            return QString::default();
+        }
+        let dir = store::config_dir();
+        if let Err(error) = std::fs::create_dir_all(dir.join("providers")) {
+            self.as_mut().set_message(QString::from(
+                format!("Could not open configuration: {error}").as_str(),
+            ));
+            return QString::default();
+        }
+        QString::from(
+            url::Url::from_directory_path(dir)
+                .map(|u| u.to_string())
+                .unwrap_or_default()
+                .as_str(),
+        )
+    }
+}
+fn demo_library() -> Library {
+    let games = [
+        ("The Outer Worlds", "steam", "A new frontier awaits"),
+        (
+            "Hollow Knight",
+            "steam",
+            "Descend into the forgotten kingdom",
+        ),
+        ("Minecraft", "prism", "Your next world starts here"),
+        ("Celeste", "steam", "Find your way to the summit"),
+        ("Hades", "lutris", "Defy the god of the dead"),
+        ("Stardew Valley", "steam", "Make yourself at home"),
+        ("No Man’s Sky", "steam", "An infinite universe to explore"),
+        ("Disco Elysium", "lutris", "Every choice leaves a mark"),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(i, (title, provider, subtitle))| Game {
+        id: format!("demo:{i}"),
+        title: title.into(),
+        provider: provider.into(),
+        subtitle: subtitle.into(),
+        artwork: String::new(),
+        command: vec![],
+        launch_uri: None,
+        directory: None,
+        favorite: false,
+        last_played: if i == 0 { 100 } else { 0 },
+    })
+    .collect();
+    Library {
+        games,
+        providers: [
+            ("steam", "Steam", 5),
+            ("lutris", "Lutris", 2),
+            ("prism", "Prism Launcher", 1),
+        ]
+        .map(|(id, name, count)| ProviderStatus {
+            id: id.into(),
+            name: name.into(),
+            count,
+            enabled: true,
+            available: true,
+            note: String::new(),
+            errors: vec![],
+        })
+        .into(),
+    }
+}

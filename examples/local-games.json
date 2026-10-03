@@ -1,0 +1,15 @@
+{
+  "id": "native",
+  "name": "Native games",
+  "games": [
+    {
+      "id": "supertuxkart",
+      "title": "SuperTuxKart",
+      "provider": "native",
+      "subtitle": "Open-source kart racing",
+      "artwork": "",
+      "command": ["supertuxkart"],
+      "directory": null
+    }
+  ]
+}

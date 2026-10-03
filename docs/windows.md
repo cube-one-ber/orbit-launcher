@@ -1,0 +1,62 @@
+# Windows development and validation
+
+Orbit includes native Windows discovery and process launching. **The Windows GUI build and standalone deployment have not yet been executed on a Windows machine in this development session.** The source includes Windows CI for the Rust core and scripts to build and validate the full application. See [TODO.md](../TODO.md) for the remaining release gates.
+
+## Prerequisites
+
+- Windows 10/11 x64.
+- Rust stable with the `x86_64-pc-windows-msvc` target.
+- Visual Studio Build Tools with the Desktop development with C++ workload and Windows SDK.
+- A matching **MSVC** Qt 6 installation with Qt Declarative/Quick Controls, SVG, and **Kirigami 6**.
+
+Use [KDE Craft's Windows setup](https://develop.kde.org/docs/getting-started/building/craft/) to obtain Qt and KDE libraries from the same toolchain. In the Craft environment, install `kirigami` and `qtsvg`. An ordinary Qt SDK alone does not include Kirigami. Do not mix MSVC and MinGW libraries.
+
+## Build
+
+Open the x64 MSVC developer environment with Craft activated, then run:
+
+```powershell
+.\scripts\build-windows.ps1 -QMake C:\CraftRoot\bin\qmake.exe
+.\target\x86_64-pc-windows-msvc\release\orbit.exe
+```
+
+Use your actual Craft qmake path. The script verifies Qt 6, the MSVC specification, and Kirigami, runs the Rust tests, then builds `orbit.exe`. A release build does not open a console window.
+
+To stage a standalone development bundle:
+
+```powershell
+.\scripts\build-windows.ps1 -QMake C:\CraftRoot\bin\qmake.exe -Package
+```
+
+This uses [windeployqt](https://doc.qt.io/qt-6/windows-deployment.html), follows KDE plugin DLL dependencies with `dumpbin`, writes a relative `qt.conf`, and runs the interaction checks with development paths removed. It fails if that test cannot complete. A staged folder is **not a signed or release-certified installer**; test it on a clean machine and collect Qt/KDE redistribution notices before distribution.
+
+## Libraries and paths
+
+- Configuration: `%APPDATA%\Orbit\settings.json`, overridden by `ORBIT_CONFIG_DIR`.
+- Steam: HKCU/HKLM `Software\Valve\Steam` (both registry views), then Program Files locations; extra libraries come from `libraryfolders.vdf`.
+- Prism: `%APPDATA%\PrismLauncher`, with executable discovery in `%LOCALAPPDATA%\Programs\PrismLauncher`, Program Files, PATH, and configured portable data folders. See [Prism data locations](https://prismlauncher.org/wiki/getting-started/data-location/).
+- Epic: `%PROGRAMDATA%\Epic\EpicGamesLauncher\Data\Manifests`, with additional `.item` folders configurable in Sources. Orbit skips incomplete installs, DLC and engine plugins. It launches with the registered `com.epicgames.launcher` protocol; a command override receives that URI as one argument.
+- GOG: game folders from HKCU/HKLM `Software\GOG.com\Games` in both views, plus standard `GOG Galaxy\Games` locations in Program Files. Add other game folders or libraries in Sources. Orbit reads `goggame-*.info`, excludes DLC and deduplicates IDs. Galaxy's executable is resolved from its installation registry path or Program Files; a command override can select another installation.
+- Lutris: unavailable on Windows; [Lutris supports Linux](https://lutris.net/downloads).
+- Additional paths must be absolute. Forward slashes (`D:/Games/Steam`) work and are easier to enter in JSON. Backslashes in JSON require escaping (`D:\\Games\\Steam`).
+- Custom entries can launch `.exe` files with separately specified argument arrays. Orbit does not evaluate shell command strings.
+
+Example command overrides (each line is a separate example for its provider's command field):
+
+```json
+["D:/Apps/PrismLauncher/prismlauncher.exe"]
+["D:/Apps/GOG Galaxy/GalaxyClient.exe"]
+```
+
+`[]` restores automatic discovery. Epic's executable override must accept an Epic game URI. Use installed and configured launchers; Orbit does not sign in to accounts itself.
+
+For an isolated preview, run `orbit.exe --demo` or `orbit.exe --demo --light`. Normal theme changes persist; preview changes do not write settings or launch games.
+
+## Native release checklist
+
+1. Run `cargo test --locked --no-default-features` and `scripts/check-ui.ps1 -Executable <path-to-orbit.exe>` on Windows; inspect the configured CI results too.
+2. Launch installed Steam, Epic and GOG games and a Prism instance; verify non-default locations and paths with spaces and Unicode.
+3. Toggle themes, restart, and verify favorites/history/settings survive repeated saves.
+4. Check keyboard navigation, file/folder pickers, 125%, 150%, and 200% display scaling.
+5. Test the staged bundle on a Windows machine without Craft or Qt on PATH.
+6. Confirm Qt/KDE license compliance before producing a signed installer.

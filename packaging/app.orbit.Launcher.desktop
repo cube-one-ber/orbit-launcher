@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Orbit
+GenericName=Game Launcher
+Comment=Your games, in one place
+Exec=orbit
+Icon=app.orbit.Launcher
+Terminal=false
+Categories=Game;Qt;KDE;
+Keywords=Steam;Lutris;Prism;Minecraft;Launcher;
+StartupNotify=true
