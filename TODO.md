@@ -2,7 +2,7 @@
 
 Priority order: Windows foundation → clean dark/light UI → additional integrations → release verification.
 
-Status: `[x]` implementation complete with local verification of the applicable code; `[ ]` outstanding. Windows layouts and parsers have Linux fixture coverage. Native Windows execution is a separate release gate: Windows CI is configured but has not been run in this workspace.
+Status: `[x]` implementation complete with local or CI verification of the applicable code; `[ ]` outstanding. Windows layouts and parsers have Linux fixture coverage. Native Windows core, release GUI build, and offscreen interaction checks now pass in GitHub Actions; real game launches and clean-machine deployment remain separate release gates.
 
 ## P0 — Windows support first
 
@@ -19,7 +19,7 @@ Status: `[x]` implementation complete with local verification of the applicable 
 - [x] Make tests portable and configure Windows/Linux core CI.
   - Add an isolated Windows registry test without modifying launcher-owned keys.
 - [x] Add PowerShell build/deployment tools and a matched Qt/Kirigami/MSVC setup guide.
-- [ ] Run and record Windows CI; address native compiler or fixture failures.
+- [x] Run and record Windows CI; native core, release GUI build and offscreen checks pass.
 - [ ] Validate the native GUI and staged folder on clean Windows 10/11 machines.
   - Check Qt platform plugins, Kirigami modules, KDE dependency DLLs and SVG support.
   - Launch real Steam games and Prism instances with spaces and non-ASCII profile paths.
@@ -71,13 +71,13 @@ Status: `[x]` implementation complete with local verification of the applicable 
 - [ ] Report immediate provider process failures; currently only dispatch is confirmed.
 - [ ] Add single-instance handling or settings coordination before supporting concurrent processes.
 - [ ] Add discovery cancellation and progress reporting for slow/network libraries.
-- [ ] Add full Linux/Windows GUI release CI after dependency deployment is validated.
+- [x] Configure full Linux/Windows/macOS GUI release CI with downloadable build artifacts.
 
 ## Verification recorded for this pass
 
 - Linux: 28 Rust unit/integration tests pass; core and full-GUI Clippy pass with `-D warnings`.
 - Kirigami: offscreen checks cover dark/light contrast, search, favorites, filters, views, dialogs, custom games, validation, compact navigation and demo isolation.
-- Windows: source, registry adapters, fixtures, CI and deployment scripts are present. Native compilation, CI execution, actual launches, scaling and clean-machine deployment remain open.
+- Windows: native MSVC compilation, Rust tests, core Clippy and release offscreen UI checks pass in GitHub Actions. Actual launches, scaling and clean-machine deployment remain open.
 
 ## Acceptance criteria
 
