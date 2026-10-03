@@ -79,7 +79,8 @@ jobs:
         with:
           version: ${{ env.QT_VERSION }}
           arch: ${{ matrix.qt-arch }}
-          modules: qtshadertools qtsvg
+          # Qt SVG is included in the base desktop SDK.
+          modules: qtshadertools
           cache: true
       - name: Cache Kirigami
         uses: actions/cache@v4
