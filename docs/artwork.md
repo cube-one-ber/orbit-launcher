@@ -14,6 +14,8 @@ Open a game's details and choose **Choose cover** to select a local image. **Res
 
 Steam discovery checks custom user grid images and both flat and nested library caches, preferring landscape images for cards. Lutris checks covers and banners separately from icons. GOG and Epic check installation folders. Heroic uses cached Epic/GOG/Amazon image metadata; Legendary uses its local Epic key images, with landscape artwork preferred. Heroic GOG entries also retain their product ID for public GOG artwork lookup. Identically named installed games can share a cover across sources; Minecraft instances must also have the same version.
 
+Roblox uses public experience thumbnails matched by universe ID, preferring 768×432 landscape artwork and falling back to the exact game's 512×512 icon. Pending or failed images keep the placeholder until a later refresh can resolve them. Roblox covers are cached for offline use and never shared with unrelated Steam titles or different Roblox universes. Optional `art.roblox_universe` is a positive numeric universe ID; artwork lookup does not use account credentials.
+
 ## Minecraft drops and updates
 
 Prism's `mmc-pack.json` identifies the `net.minecraft` version; older instances can use `IntendedVersion`. Modrinth's legacy database supplies `game_version`, and its current database uses the **applied** content set rather than an update waiting to install. Prism's managed Modrinth pack ID and Modrinth's linked project ID enable gallery artwork without accessing account credentials.

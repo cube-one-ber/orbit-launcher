@@ -381,14 +381,22 @@ fn windows_console_launchers_start_without_a_console_window() {
     let temp = tempfile::tempdir().unwrap();
     let output = temp.path().join("console-handle.txt");
     let mut game: Game = serde_json::from_value(json!({"id":"custom:console-fixture", "title":"Console fixture", "provider":"custom", "subtitle":"", "artwork":""})).unwrap();
-    game.command = vec!["powershell.exe".into(), "-NoProfile".into(), "-NonInteractive".into(), "-Command".into(), r#"Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class OrbitConsoleProbe { [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow(); }'; [System.IO.File]::WriteAllText($env:ORBIT_LAUNCH_TEST_OUTPUT, [OrbitConsoleProbe]::GetConsoleWindow().ToInt64().ToString())"#.into()];
+    game.command = vec![
+        std::env::current_exe()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned(),
+        "--exact".into(),
+        "windows_console_probe_child".into(),
+        "--ignored".into(),
+    ];
     game.environment.insert(
         "ORBIT_LAUNCH_TEST_OUTPUT".into(),
         output.to_string_lossy().into_owned(),
     );
     providers::launch(&game).unwrap();
-    for _ in 0..200 {
-        if output.exists() {
+    for _ in 0..600 {
+        if fs::read_to_string(&output).is_ok_and(|text| !text.is_empty()) {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
@@ -398,6 +406,16 @@ fn windows_console_launchers_start_without_a_console_window() {
         "0",
         "Console launcher should have no console window"
     );
+}
+
+#[cfg(windows)]
+#[test]
+#[ignore = "Launched by the parent test with CREATE_NO_WINDOW and an isolated output path"]
+fn windows_console_probe_child() {
+    let path = std::env::var_os("ORBIT_LAUNCH_TEST_OUTPUT").expect("Run through the parent test");
+    // SAFETY: GetConsoleWindow has no arguments and returns the current process's handle.
+    let handle = unsafe { windows_sys::Win32::System::Console::GetConsoleWindow() };
+    fs::write(path, if handle.is_null() { "0" } else { "nonzero" }).unwrap();
 }
 
 #[cfg(unix)]

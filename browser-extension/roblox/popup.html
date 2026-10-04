@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Orbit Roblox Sync</title>
+<link rel="stylesheet" href="popup.css">
+<main><h1>Orbit Roblox Sync</h1><p>Your five most played experiences, ranked by time in the last week.</p>
+<label><input id="enabled" type="checkbox" checked> Sync automatically on Roblox</label>
+<p id="status" role="status">No report yet.</p><p id="error" role="alert"></p>
+<button id="sync">Sync now</button><p class="hint">Visit Roblox while signed in. Orbit checks the report in Downloads every 30 seconds while idle.</p>
+<label class="hint" for="path">Report path (choose this file in Orbit if needed)</label><textarea id="path" readonly rows="3"></textarea>
+<p class="hint">Your login cookies stay in your browser. No analytics or third-party sync servers.</p></main>
+<script src="popup.js"></script></html>

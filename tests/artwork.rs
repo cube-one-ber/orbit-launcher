@@ -34,6 +34,63 @@ fn png() -> Vec<u8> {
         .unwrap();
     bytes.into_inner()
 }
+#[test]
+fn roblox_uses_its_own_landscape_art_and_keeps_cached_art_offline() {
+    let temp = tempfile::tempdir().unwrap();
+    let metadata = "https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds=42&countPerUniverse=1&defaults=true&size=768x432&format=Png&isCircular=false";
+    let cover = "https://tr.rbxcdn.com/fixture/768/432/Image/Png";
+    let mut fetcher = FakeFetcher::default();
+    fetcher.responses.insert(metadata.into(), serde_json::to_vec(&json!({"data":[{"universeId":99,"thumbnails":[{"state":"Completed","imageUrl":"https://wrong.example/art.png"}]},{"universeId":42,"thumbnails":[{"state":"Pending","imageUrl":cover},{"state":"Completed","imageUrl":cover}]}]})).unwrap());
+    fetcher.responses.insert(cover.into(), png());
+    let requests = fetcher.requests.clone();
+    let mut entry = game();
+    entry.provider = "roblox".into();
+    entry.art.roblox_universe = Some(42);
+    service(&temp, true, fetcher).resolve(&mut entry, None);
+    assert_eq!(entry.art.source, "Roblox experience artwork");
+    assert_eq!(entry.art.kind, ArtworkKind::Cover);
+    assert_eq!(requests.lock().unwrap().as_slice(), [metadata, cover]);
+    let mut offline = game();
+    offline.provider = "roblox".into();
+    offline.art.roblox_universe = Some(42);
+    service(&temp, false, FakeFetcher::default()).resolve(&mut offline, None);
+    assert_eq!(offline.artwork, entry.artwork);
+}
+#[test]
+fn roblox_falls_back_to_the_exact_game_icon_without_steam_title_matching() {
+    let temp = tempfile::tempdir().unwrap();
+    let metadata = "https://thumbnails.roblox.com/v1/games/icons?universeIds=42&size=512x512&format=Png&isCircular=false";
+    let icon = "https://tr.rbxcdn.com/fixture/512/512/Image/Png";
+    let mut fetcher = FakeFetcher::default();
+    fetcher.responses.insert(metadata.into(),serde_json::to_vec(&json!({"data":[{"targetId":42,"state":"Completed","imageUrl":"https://rbxcdn.com.attacker.example/icon.png"},{"targetId":99,"state":"Completed","imageUrl":icon},{"targetId":42,"state":"Completed","imageUrl":icon}]})).unwrap());
+    fetcher.responses.insert(icon.into(), png());
+    let requests = fetcher.requests.clone();
+    let mut entry = game();
+    entry.provider = "roblox".into();
+    entry.art.roblox_universe = Some(42);
+    service(&temp, true, fetcher).resolve(&mut entry, None);
+    assert_eq!(entry.art.kind, ArtworkKind::Icon);
+    assert_eq!(entry.art.source, "Roblox experience icon");
+    assert!(
+        !requests
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|r| r.contains("steampowered") || r.contains("attacker"))
+    );
+    let mut steam = game();
+    steam.artwork = "file:///fixture-steam.png".into();
+    entry.artwork.clear();
+    let mut mixed = [steam, entry.clone()];
+    orbit_launcher::artwork::share_covers(&mut mixed);
+    assert!(mixed[1].artwork.is_empty());
+    let mut games = vec![entry.clone(), entry];
+    games[0].art.roblox_universe = Some(99);
+    games[0].artwork = "file:///other-universe.png".into();
+    games[0].art.kind = ArtworkKind::Cover;
+    orbit_launcher::artwork::share_covers(&mut games);
+    assert!(games[1].artwork.is_empty());
+}
 fn service(
     temp: &tempfile::TempDir,
     online: bool,

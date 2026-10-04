@@ -18,6 +18,7 @@ Kirigami.ApplicationWindow {
     property var prefs: JSON.parse(backend.preferences)
     property string section: "library"
     property string sourceFilter: "all"
+    onSourceFilterChanged: { if (sourceFilter === "roblox") sortBy = "Weekly playtime"; else if (sortBy === "Weekly playtime") sortBy = "Name"; }
     property string query: ""
     property string sortBy: "Name"
     property var selectedGame: null
@@ -33,7 +34,7 @@ Kirigami.ApplicationWindow {
             && (section !== "favorites" || g.favorite)
             && (section !== "recent" || g.last_played > 0)
             && (g.title + " " + g.subtitle).toLowerCase().includes(query.toLowerCase()));
-        games.sort(sortBy === "Recently played" || section === "recent" ? (a,b)=>b.last_played-a.last_played : (a,b)=>a.title.localeCompare(b.title));
+        games.sort(sortBy === "Recently played" || section === "recent" ? (a,b)=>b.last_played-a.last_played : sortBy === "Weekly playtime" ? (a,b)=>(a.source_rank || 255)-(b.source_rank || 255) : (a,b)=>a.title.localeCompare(b.title));
         return games;
     }
     function save(values) { return backend.configure(JSON.stringify(values)); }
@@ -49,6 +50,7 @@ Kirigami.ApplicationWindow {
     function openSource(id) {
         sourceDialog.sourceId = id;
         sourceDialog.error = "";
+        sourceDialog.extensionPath = "";
         const cfg = prefs.sources[id] || {enabled:true, paths:[], command:[]};
         sourcePaths.text = cfg.paths.join("\n"); sourceCommand.text = JSON.stringify(cfg.command);
         sourceDialog.open();
@@ -83,6 +85,7 @@ Kirigami.ApplicationWindow {
         backend.refresh();
     }
     Timer { interval: 100; repeat: true; running: backend.busy || backend.artwork_busy; onTriggered: backend.poll() }
+    Timer { interval: 30000; repeat: true; running: !backend.demo; onTriggered: backend.check_roblox_report() }
     Timer { interval: 2400; running: Qt.application.arguments.includes("--smoke-test"); onTriggered: Qt.quit() }
     Timer {
         interval: 1400; running: Qt.application.arguments.includes("--screenshot")
@@ -218,7 +221,7 @@ Kirigami.ApplicationWindow {
                     Item { Layout.fillHeight: true }
                     NavItem { text: "Sources"; symbol: "folder"; selected: root.section === "sources"; onClicked: root.changeSection("sources") }
                     NavItem { text: "Appearance"; symbol: "settings"; selected: root.section === "appearance"; onClicked: root.changeSection("appearance") }
-                    Controls.Label { visible: !root.compactNavigation; text: backend.demo ? "Preview mode" : "Orbit 0.4"; color: colors.faint; font.pixelSize: 11; Layout.leftMargin: 12; Layout.topMargin: 14; Layout.bottomMargin: 5 }
+                    Controls.Label { visible: !root.compactNavigation; text: backend.demo ? "Preview mode" : "Orbit " + Qt.application.version; color: colors.faint; font.pixelSize: 11; Layout.leftMargin: 12; Layout.topMargin: 14; Layout.bottomMargin: 5 }
                 }
             }
             ColumnLayout {
@@ -261,7 +264,7 @@ Kirigami.ApplicationWindow {
                                 onTextChanged: root.query = text
                                 AppIcon { x: 12; anchors.verticalCenter: parent.verticalCenter; width: 16; height: 16; name: "search"; ink: colors.faint }
                             }
-                            Combo { model: ["Name", "Recently played"]; onActivated: root.sortBy = currentText; Accessible.name: "Sort games" }
+                            Combo { model: root.sourceFilter === "roblox" ? ["Weekly playtime", "Name", "Recently played"] : ["Name", "Recently played"]; currentIndex: model.indexOf(root.sortBy); onActivated: root.sortBy = currentText; Accessible.name: "Sort games" }
                             RowLayout {
                                 spacing: 2
                                 Button { symbol: "grid"; quiet: true; checked: root.prefs.view === "grid"; Accessible.name: "Grid view"; onClicked: root.save({view:"grid"}); Controls.ToolTip.visible: hovered; Controls.ToolTip.text: "Grid view" }
@@ -300,7 +303,10 @@ Kirigami.ApplicationWindow {
                                             contentItem: RowLayout {
                                                 spacing: 14
                                                 GameArtwork { game: gameLoader.modelData; theme: colors; thumbnail: true; Layout.preferredWidth: 38; Layout.preferredHeight: 38; Layout.leftMargin: 12 }
-                                                Controls.Label { text: gameLoader.modelData.title; color: colors.text; font { pixelSize: 13; weight: Font.Medium } elide: Text.ElideRight; Layout.fillWidth: true }
+                                                ColumnLayout { Layout.fillWidth: true; spacing: 4
+                                                    Controls.Label { text: gameLoader.modelData.title; color: colors.text; font { pixelSize: 13; weight: Font.Medium } elide: Text.ElideRight; Layout.fillWidth: true }
+                                                    Controls.Label { text: gameLoader.modelData.subtitle.split(" · ").slice(0, 2).join(" · "); visible: gameLoader.modelData.provider === "roblox"; color: colors.muted; font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true }
+                                                }
                                                 Controls.Label { text: root.providerName(gameLoader.modelData.provider); color: colors.muted; font.pixelSize: 12; visible: root.width > 900 }
                                                 Button { symbol: "star"; quiet: true; checked: gameLoader.modelData.favorite; Accessible.name: "Toggle favorite"; onClicked: backend.favorite(gameLoader.modelData.id) }
                                                 Button { symbol: "play"; quiet: true; Accessible.name: (gameLoader.modelData.launch_notice ? "Open launcher for " : "Launch ") + gameLoader.modelData.title; onClicked: backend.launch(gameLoader.modelData.id); Layout.rightMargin: 10 }
@@ -467,7 +473,7 @@ Kirigami.ApplicationWindow {
         contentItem: ColumnLayout {
             spacing: 16
             Controls.Label { text: root.selectedGame ? root.selectedGame.subtitle : ""; color: colors.muted; Layout.fillWidth: true; wrapMode: Text.Wrap }
-            Controls.Label { text: root.selectedGame && root.selectedGame.provider === "prism" ? "Starts the instance directly; Prism's main window stays hidden." : "Opens with " + (root.selectedGame ? root.providerName(root.selectedGame.provider) : ""); color: colors.faint; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            Controls.Label { text: root.selectedGame && root.selectedGame.provider === "prism" ? "Starts the instance directly; Prism's main window stays hidden." : root.selectedGame && root.selectedGame.provider === "roblox" ? "Joins the experience directly, skipping Roblox's home screen. Login or update prompts may still appear." : "Opens with " + (root.selectedGame ? root.providerName(root.selectedGame.provider) : ""); color: colors.faint; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.Wrap }
             Controls.Label { text: root.selectedGame ? root.selectedGame.launch_notice || "" : ""; visible: text !== ""; color: colors.muted; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.Wrap }
             GameArtwork { game: root.selectedGame; theme: colors; Layout.fillWidth: true; Layout.preferredHeight: 180 }
             RowLayout {
@@ -489,34 +495,51 @@ Kirigami.ApplicationWindow {
         id: sourceDialog
         property string sourceId: ""
         property string error: ""
+        property string extensionPath: ""
         title: "Configure " + root.providerName(sourceId)
-        contentItem: ColumnLayout {
-            spacing: 12
-            Controls.Label { text: ({steam:"Add folders containing steamapps.",lutris:"Add Lutris data folders or pga.db files.",prism:"Add Prism data folders containing prismlauncher.cfg. Play skips Prism's main window.",modrinth:"Add Modrinth data folders containing app.db, or select an app.db path. Custom app directories are read from the database.",heroic:"Add Heroic configuration folders containing legendaryConfig, gog_store or nile_config. Select a command override for AppImages or portable installations.",legendary:"Add Legendary configuration folders or installed.json files. Orbit preserves the selected configuration when launching.",epic:"Add Epic Games Launcher manifest folders (.item files).",gog:"Add GOG game folders or libraries containing goggame-*.info files."})[sourceDialog.sourceId] || "This provider reads its JSON manifest."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.muted; font.pixelSize: 12 }
-            Controls.Label { text: "Additional paths"; color: colors.text; font.pixelSize: 12 }
-            Controls.TextArea {
-                id: sourcePaths; Layout.fillWidth: true; implicitHeight: 100
-                color: colors.text; placeholderTextColor: colors.faint; font.pixelSize: 12
-                placeholderText: "One absolute path per line"; wrapMode: Text.WrapAnywhere; padding: 12
-                background: Rectangle { radius: 7; color: colors.window; border.color: sourcePaths.activeFocus ? colors.accent : colors.border }
-            }
-            Button { text: "Browse folder"; symbol: "folder"; onClicked: { folderPicker.target = "source"; folderPicker.open(); } }
-            Controls.Label { text: "Launcher command (optional)"; color: colors.text; font.pixelSize: 12 }
-            Field { id: sourceCommand; Layout.fillWidth: true; placeholderText: '["C:/Apps/Launcher.exe"]'; Accessible.name: "Launcher command" }
-            Controls.Label { text: "Use a JSON array of executable and arguments. Leave [] to detect the launcher automatically."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.faint; font.pixelSize: 11 }
-            Controls.Label { text: sourceDialog.error; visible: text !== ""; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.warning }
-            RowLayout {
-                Item { Layout.fillWidth: true }
-                Button { text: "Cancel"; onClicked: sourceDialog.close() }
-                Button { text: "Save"; primary: true; onClicked: {
-                    try {
-                        const command = JSON.parse(sourceCommand.text || "[]");
-                        if (!Array.isArray(command) || !command.every(s=>typeof s === "string")) throw Error("Command must be a JSON array of strings.");
-                        const sources = JSON.parse(JSON.stringify(root.prefs.sources));
-                        sources[sourceDialog.sourceId] = {enabled:sources[sourceDialog.sourceId] ? sources[sourceDialog.sourceId].enabled : true, paths:sourcePaths.text.split("\n").map(p=>p.trim()).filter(p=>p.length), command:command};
-                        if (root.save({sources:sources})) sourceDialog.close(); else sourceDialog.error = backend.message;
-                    } catch (e) { sourceDialog.error = e.toString(); }
-                } }
+        height: Math.min(root.height - 48, implicitHeight)
+        contentItem: Controls.ScrollView {
+            id: sourceScroll
+            implicitHeight: sourceForm.implicitHeight
+            contentWidth: availableWidth
+            ColumnLayout {
+                id: sourceForm
+                width: sourceScroll.availableWidth
+                spacing: 12
+                Controls.Label { text: ({steam:"Add folders containing steamapps.",lutris:"Add Lutris data folders or pga.db files.",prism:"Add Prism data folders containing prismlauncher.cfg. Play skips Prism's main window.",modrinth:"Add Modrinth data folders containing app.db, or select an app.db path. Custom app directories are read from the database.",heroic:"Add Heroic configuration folders containing legendaryConfig, gog_store or nile_config. Select a command override for AppImages or portable installations.",legendary:"Add Legendary configuration folders or installed.json files. Orbit preserves the selected configuration when launching.",roblox:"Connect the bundled browser extension to sync your top five from last week. Your login stays in Chrome or Chromium. Play skips Roblox’s home screen.",epic:"Add Epic Games Launcher manifest folders (.item files).",gog:"Add GOG game folders or libraries containing goggame-*.info files."})[sourceDialog.sourceId] || "This provider reads its JSON manifest."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.muted; font.pixelSize: 12 }
+                Button { text: "Set up browser sync"; visible: sourceDialog.sourceId === "roblox"; onClicked: sourceDialog.extensionPath = backend.prepare_roblox_extension() }
+                Controls.Label { text: "In Chrome or Chromium, enable Developer mode on the Extensions page, choose Load unpacked, and select this folder. Then visit Roblox while signed in."; visible: sourceDialog.extensionPath !== ""; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.muted; font.pixelSize: 12 }
+                RowLayout { visible: sourceDialog.extensionPath !== ""; Layout.fillWidth: true
+                    Field { id: extensionFolder; text: sourceDialog.extensionPath; readOnly: true; Layout.fillWidth: true; Accessible.name: "Prepared extension folder" }
+                    Button { text: "Copy path"; onClicked: { extensionFolder.selectAll(); extensionFolder.copy(); extensionFolder.deselect(); } }
+                }
+                Controls.Label { text: sourceDialog.sourceId === "roblox" ? "Report path (optional)" : "Additional paths"; color: colors.text; font.pixelSize: 12 }
+                Controls.TextArea {
+                    id: sourcePaths; Layout.fillWidth: true; implicitHeight: 100
+                    Accessible.name: sourceDialog.sourceId === "roblox" ? "Roblox report path" : "Additional library paths"
+                    color: colors.text; placeholderTextColor: colors.faint; font.pixelSize: 12
+                    placeholderText: "One absolute path per line"; wrapMode: Text.WrapAnywhere; padding: 12
+                    background: Rectangle { radius: 7; color: colors.window; border.color: sourcePaths.activeFocus ? colors.accent : colors.border }
+                }
+                Button { text: sourceDialog.sourceId === "roblox" ? "Choose report" : "Browse folder"; symbol: "folder"; onClicked: { if (sourceDialog.sourceId === "roblox") { filePicker.target = "roblox-report"; filePicker.nameFilters = ["Roblox report (*.json)"]; filePicker.open(); } else { folderPicker.target = "source"; folderPicker.open(); } } }
+                Controls.Label { text: "Leave the path empty to watch Downloads/orbit-roblox-top-games.json. If downloads are redirected, choose the report shown in the extension's popup. Orbit refreshes when it changes."; visible: sourceDialog.sourceId === "roblox"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.faint; font.pixelSize: 11 }
+                Controls.Label { text: "Launcher command (optional)"; color: colors.text; font.pixelSize: 12 }
+                Field { id: sourceCommand; Layout.fillWidth: true; placeholderText: '["C:/Apps/Launcher.exe"]'; Accessible.name: "Launcher command" }
+                Controls.Label { text: "Use a JSON array of executable and arguments. Leave [] to detect the launcher automatically."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.faint; font.pixelSize: 11 }
+                Controls.Label { text: sourceDialog.error; visible: text !== ""; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.warning }
+                RowLayout {
+                    Item { Layout.fillWidth: true }
+                    Button { text: "Cancel"; onClicked: sourceDialog.close() }
+                    Button { text: "Save"; primary: true; onClicked: {
+                        try {
+                            const command = JSON.parse(sourceCommand.text || "[]");
+                            if (!Array.isArray(command) || !command.every(s=>typeof s === "string")) throw Error("Command must be a JSON array of strings.");
+                            const sources = JSON.parse(JSON.stringify(root.prefs.sources));
+                            sources[sourceDialog.sourceId] = {enabled:sources[sourceDialog.sourceId] ? sources[sourceDialog.sourceId].enabled : true, paths:sourcePaths.text.split("\n").map(p=>p.trim()).filter(p=>p.length), command:command};
+                            if (root.save({sources:sources})) sourceDialog.close(); else sourceDialog.error = backend.message;
+                        } catch (e) { sourceDialog.error = e.toString(); }
+                    } }
+                }
             }
         }
     }
@@ -567,8 +590,8 @@ Kirigami.ApplicationWindow {
         id: filePicker
         property string target: "executable"
         property string gameId: ""
-        title: target === "artwork" || target === "cover" ? "Choose a cover image" : "Choose an executable"
-        onAccepted: { const path = backend.local_path(selectedFile.toString()); if (target === "cover") backend.set_artwork(gameId, path); else if (target === "artwork") gameArtwork.text = path; else gameExecutable.text = path; }
+        title: target === "artwork" || target === "cover" ? "Choose a cover image" : target === "roblox-report" ? "Choose Roblox playtime report" : "Choose an executable"
+        onAccepted: { const path = backend.local_path(selectedFile.toString()); if (target === "cover") backend.set_artwork(gameId, path); else if (target === "artwork") gameArtwork.text = path; else if (target === "roblox-report") sourcePaths.text = path; else gameExecutable.text = path; }
     }
     Dialogs.FolderDialog {
         id: folderPicker

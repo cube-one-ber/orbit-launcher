@@ -90,6 +90,7 @@ impl Provider for Lutris {
                         launch_uri: None,
                         directory: None,
                         favorite: false,
+                        source_rank: 0,
                         last_played: 0,
                     })
                 })?;

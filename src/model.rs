@@ -27,6 +27,7 @@ pub struct Artwork {
     pub minecraft_version: Option<String>,
     pub modrinth_project: Option<String>,
     pub gog_product: Option<String>,
+    pub roblox_universe: Option<u64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -52,6 +53,9 @@ pub struct Game {
     pub favorite: bool,
     #[serde(default)]
     pub last_played: u64,
+    /// Provider-defined ranking, where 1 is first and 0 means unranked.
+    #[serde(default)]
+    pub source_rank: u8,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -106,6 +110,7 @@ impl Default for Settings {
                 "modrinth",
                 "heroic",
                 "legendary",
+                "roblox",
                 "epic",
                 "gog",
             ]

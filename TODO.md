@@ -45,6 +45,24 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 
 ## P2 — Additional integrations
 
+- [x] Add Roblox's personal weekly top five from a browser-owned Screen time report.
+  - Bundle a Chrome/Chromium MV3 extension with automatic sync on Roblox pages and a manual retry.
+  - Prepare extension files and open the browser setup page from Sources; explain the required Load unpacked step.
+  - Keep cookies and authentication tickets in the browser; export only account/game IDs, titles and weekly playtime.
+  - Watch one bounded local report, rank by playtime, preserve account-specific IDs, and report stale snapshots.
+  - Fetch exact Roblox landscape thumbnails with icon fallback and offline caching; exclude unrelated Steam covers.
+  - Dispatch direct experience joins with a strict single-place-ID protocol; support compatible client overrides.
+  - Add Rust/browser fixtures, demo/navigation checks and CI extension archives.
+- [ ] Validate the extension with real signed-in Chrome/Chromium accounts on Linux and Windows.
+  - Check screen-time availability, actual response shape, account switches, and no-cookie report exports.
+  - Verify automatic download overwrite, redirected Downloads, browser permission prompts and download failures.
+  - Verify Orbit detects changes, top-five ordering matches Roblox, and disabling sync retains the last snapshot.
+- [ ] Validate actual Roblox Windows and compatible Linux client joins with minimal launcher UI.
+  - Check cold/already-running clients, login/update prompts, root-place mapping, and protocol handler errors.
+- [ ] Publish/sign browser extension packages for a simpler permanent installation flow.
+  - Chrome Web Store publication is required before replacing unpacked setup with a store installation link.
+  - Mozilla signing is required for the optional Firefox variant; its unsigned archive is for temporary development loading.
+
 - [x] Add Epic Games installed-manifest discovery on Windows.
   - Skip incomplete/missing installs, DLC and engine plugins; report malformed files independently.
   - Encode catalog namespace, item and app identity in the URI; support command overrides.

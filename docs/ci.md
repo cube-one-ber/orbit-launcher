@@ -12,11 +12,17 @@ Platform jobs run independently so one failure does not cancel the others.
 | `orbit-windows-x86_64` | Windows Server 2022 / MSVC | `x86_64-pc-windows-msvc` |
 | `orbit-macos-x86_64` | macOS 15 / Intel | `x86_64-apple-darwin` |
 | `orbit-macos-arm64` | macOS 15 / Apple Silicon | `aarch64-apple-darwin` |
+| `orbit-roblox-browser-extension` | Ubuntu 24.04 / Node 22 | Chrome/Chromium and Firefox source archives |
 
 Open a successful workflow run and download its **Artifacts**. Windows builds
 contain a ZIP; Linux and macOS builds contain a tar.gz archive that preserves the
 executable permission. Artifacts are kept for 14 days. Each archive contains the
 binary, README, license, and this guide.
+
+The separate Roblox job runs the browser sync fixtures and uploads both extension
+variants. Orbit binaries also embed the Chrome/Chromium setup files. The Firefox
+archive is unsigned and intended for temporary development loading; see the
+[Roblox setup guide](roblox.md) for installation and signing limitations.
 
 These are development binaries. **Qt and Kirigami runtime libraries are not
 bundled.** CI uses Qt **6.8.3** (including Qt SVG and Shader Tools) and KDE

@@ -69,6 +69,29 @@ impl Platform {
             ]
         }
     }
+    pub fn downloads_dir(&self) -> PathBuf {
+        if self.os == Os::Linux
+            && let Ok(text) = std::fs::read_to_string(self.config_home.join("user-dirs.dirs"))
+        {
+            for line in text.lines() {
+                if let Some(value) = line
+                    .trim()
+                    .strip_prefix("XDG_DOWNLOAD_DIR=\"")
+                    .and_then(|v| v.strip_suffix('"'))
+                {
+                    let path = if let Some(relative) = value.strip_prefix("$HOME/") {
+                        self.home.join(relative)
+                    } else {
+                        PathBuf::from(value)
+                    };
+                    if path.is_absolute() {
+                        return path;
+                    }
+                }
+            }
+        }
+        self.home.join("Downloads")
+    }
     pub fn prism_roots(&self) -> Vec<PathBuf> {
         if self.os == Os::Windows {
             let mut roots = vec![self.roaming.join("PrismLauncher")];
@@ -256,7 +279,19 @@ pub fn validate_game_uri(uri: &str) -> Result<url::Url, String> {
                 && parts.next().is_some_and(|id| !id.is_empty())
                 && parts.next().is_none()
         });
-    if (parsed.scheme() != "com.epicgames.launcher" && !modrinth)
+    let roblox = parsed.scheme() == "roblox"
+        && parsed.host_str() == Some("experiences")
+        && parsed.path() == "/start"
+        && {
+            let mut query = parsed.query_pairs();
+            query.next().is_some_and(|(key, id)| {
+                key == "placeId"
+                    && !id.is_empty()
+                    && id.bytes().all(|b| b.is_ascii_digit())
+                    && id.parse::<u64>().is_ok_and(|n| n > 0)
+            }) && query.next().is_none()
+        };
+    if (parsed.scheme() != "com.epicgames.launcher" && !modrinth && !roblox)
         || !parsed.username().is_empty()
         || parsed.password().is_some()
         || parsed.port().is_some()
@@ -286,10 +321,10 @@ pub fn open_game_uri(uri: &str) -> Result<(), String> {
             )
         } as isize;
         if result <= 32 {
-            let launcher = if parsed.scheme() == "modrinth" {
-                "Modrinth Launcher"
-            } else {
-                "Epic Games Launcher"
+            let launcher = match parsed.scheme() {
+                "modrinth" => "Modrinth Launcher",
+                "roblox" => "Roblox",
+                _ => "Epic Games Launcher",
             };
             Err(format!(
                 "Windows could not open {launcher} (error {result}). Install it or configure its executable in Sources."
@@ -300,17 +335,22 @@ pub fn open_game_uri(uri: &str) -> Result<(), String> {
     }
     #[cfg(not(windows))]
     {
-        if parsed.scheme() != "modrinth" {
+        if !["modrinth", "roblox"].contains(&parsed.scheme()) {
             return Err("This game requires its Windows launcher.".into());
         }
-        let mut child = std::process::Command::new("xdg-open")
+        let handler = if cfg!(target_os = "macos") {
+            "open"
+        } else {
+            "xdg-open"
+        };
+        let mut child = std::process::Command::new(handler)
             .arg(uri)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .spawn()
             .map_err(|e| {
-                format!("Could not open Modrinth Launcher: {e}. Configure its command in Sources.")
+                format!("Could not open {}: {e}. Install a protocol handler or configure its command in Sources.", if parsed.scheme() == "roblox" { "Roblox" } else { "Modrinth Launcher" })
             })?;
         std::thread::spawn(move || {
             let _ = child.wait();

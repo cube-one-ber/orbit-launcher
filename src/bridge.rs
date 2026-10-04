@@ -36,6 +36,8 @@ pub mod qobject {
         #[qinvokable]
         fn refresh(self: Pin<&mut Self>);
         #[qinvokable]
+        fn check_roblox_report(self: Pin<&mut Self>);
+        #[qinvokable]
         fn poll(self: Pin<&mut Self>);
         #[qinvokable]
         fn launch(self: Pin<&mut Self>, id: &QString);
@@ -55,6 +57,8 @@ pub mod qobject {
         fn local_path(&self, url: &QString) -> QString;
         #[qinvokable]
         fn prepare_config(self: Pin<&mut Self>) -> QString;
+        #[qinvokable]
+        fn prepare_roblox_extension(self: Pin<&mut Self>) -> QString;
     }
 }
 pub struct BackendRust {
@@ -71,6 +75,7 @@ pub struct BackendRust {
     artwork_cancel: Option<Arc<AtomicBool>>,
     rescan: bool,
     load_error: Option<String>,
+    roblox_signature: Option<(std::path::PathBuf, SystemTime, u64)>,
 }
 impl Default for BackendRust {
     fn default() -> Self {
@@ -98,6 +103,7 @@ impl Default for BackendRust {
             artwork_cancel: None,
             rescan: false,
             load_error: error,
+            roblox_signature: None,
         }
     }
 }
@@ -109,6 +115,23 @@ impl Drop for BackendRust {
     }
 }
 impl qobject::Backend {
+    pub fn prepare_roblox_extension(mut self: Pin<&mut Self>) -> QString {
+        if *self.demo() {
+            self.set_message(QString::from("Preview mode · Extension setup is disabled."));
+            return QString::default();
+        }
+        match orbit_launcher::browser_extension::prepare(&store::config_dir(), "chrome") {
+            Ok(path) => {
+                let message = orbit_launcher::browser_extension::open_setup().err().unwrap_or_else(|| "Extension files are ready. In Chrome or Chromium, enable Developer mode, choose Load unpacked and select the displayed folder. Then visit Roblox while signed in.".into());
+                self.as_mut().set_message(QString::from(message.as_str()));
+                QString::from(path.to_string_lossy().as_ref())
+            }
+            Err(error) => {
+                self.set_message(QString::from(error.as_str()));
+                QString::default()
+            }
+        }
+    }
     fn publish(mut self: Pin<&mut Self>) {
         let snapshot = serde_json::to_string(&self.rust().library).unwrap();
         let settings = serde_json::to_string(&self.rust().settings).unwrap();
@@ -162,6 +185,8 @@ impl qobject::Backend {
         }
         self.as_mut().set_busy(true);
         let settings = self.rust().settings.clone();
+        let config = settings.sources.get("roblox").cloned().unwrap_or_default();
+        self.as_mut().rust_mut().roblox_signature = providers::roblox_report_signature(&config);
         let (tx, rx) = mpsc::channel();
         self.as_mut().rust_mut().receiver = Some(rx);
         std::thread::spawn(move || {
@@ -169,6 +194,25 @@ impl qobject::Backend {
             artwork::apply_cached(&mut library, &settings, store::cache_dir().join("artwork"));
             let _ = tx.send(library);
         });
+    }
+    pub fn check_roblox_report(mut self: Pin<&mut Self>) {
+        if *self.demo() || *self.busy() || *self.artwork_busy() {
+            return;
+        }
+        let config = self
+            .rust()
+            .settings
+            .sources
+            .get("roblox")
+            .cloned()
+            .unwrap_or_default();
+        if !config.enabled {
+            return;
+        }
+        let signature = providers::roblox_report_signature(&config);
+        if signature != self.rust().roblox_signature {
+            self.as_mut().refresh();
+        }
     }
     pub fn poll(mut self: Pin<&mut Self>) {
         let result = self.rust().receiver.as_ref().map(|rx| rx.try_recv());
@@ -418,6 +462,7 @@ impl qobject::Backend {
                     environment: Default::default(),
                     launch_uri: None,
                     favorite: false,
+                    source_rank: 0,
                     last_played: 0,
                 })
             });
@@ -526,6 +571,7 @@ fn demo_library() -> Library {
             "modrinth",
             "Minecraft 1.21.5 · Modrinth Launcher",
         ),
+        ("DOORS", "roblox", "#1 · 4h 20m last week · @Demo_Player"),
     ]
     .into_iter()
     .enumerate()
@@ -536,6 +582,7 @@ fn demo_library() -> Library {
         subtitle: subtitle.into(),
         artwork: String::new(),
         art: Artwork {
+            roblox_universe: (provider == "roblox").then_some(2440500124),
             minecraft_version: [2, 8].contains(&i).then(|| "1.21.5".into()),
             modrinth_project: (i == 8).then(|| "1KVo5zza".into()),
             remote: artwork::steam_urls(match i {
@@ -556,6 +603,7 @@ fn demo_library() -> Library {
         launch_uri: None,
         directory: None,
         favorite: false,
+        source_rank: if provider == "roblox" { 1 } else { 0 },
         last_played: if i == 0 { 100 } else { 0 },
     })
     .collect();
@@ -568,6 +616,7 @@ fn demo_library() -> Library {
             ("modrinth", "Modrinth Launcher", 1),
             ("heroic", "Heroic Games Launcher", 1),
             ("legendary", "Legendary", 1),
+            ("roblox", "Roblox", 1),
         ]
         .map(|(id, name, count)| ProviderStatus {
             id: id.into(),

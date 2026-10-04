@@ -249,6 +249,48 @@ impl<F: Fetcher> ArtworkService<F> {
         if !self.prefer_minecraft_updates && self.minecraft_cover(game) {
             return;
         }
+        if let Some(id) = game.art.roblox_universe.filter(|id| *id > 0) {
+            let url = format!(
+                "https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds={id}&countPerUniverse=1&defaults=true&size=768x432&format=Png&isCircular=false"
+            );
+            if let Some(metadata) = self.json(&url) {
+                for entry in metadata["data"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|e| e["universeId"].as_u64() == Some(id))
+                {
+                    for thumbnail in entry["thumbnails"].as_array().into_iter().flatten() {
+                        if thumbnail["state"] == "Completed"
+                            && let Some(url) = thumbnail["imageUrl"]
+                                .as_str()
+                                .filter(|url| roblox_image_url(url))
+                            && let Some(image) = self.image(url)
+                        {
+                            set_art(game, image, ArtworkKind::Cover, "Roblox experience artwork");
+                            return;
+                        }
+                    }
+                }
+            }
+            let url = format!(
+                "https://thumbnails.roblox.com/v1/games/icons?universeIds={id}&size=512x512&format=Png&isCircular=false"
+            );
+            if let Some(metadata) = self.json(&url) {
+                for thumbnail in metadata["data"].as_array().into_iter().flatten() {
+                    if thumbnail["targetId"].as_u64() == Some(id)
+                        && thumbnail["state"] == "Completed"
+                        && let Some(url) = thumbnail["imageUrl"]
+                            .as_str()
+                            .filter(|url| roblox_image_url(url))
+                        && let Some(image) = self.image(url)
+                    {
+                        set_art(game, image, ArtworkKind::Icon, "Roblox experience icon");
+                        return;
+                    }
+                }
+            }
+        }
         for url in game.art.remote.clone() {
             if let Some(image) = self.image(&url) {
                 set_art(
@@ -300,6 +342,7 @@ impl<F: Fetcher> ArtworkService<F> {
         // Exact public store names only: no fuzzy matching or guessing a different game's cover.
         if game.art.minecraft_version.is_none()
             && game.provider != "steam"
+            && game.provider != "roblox"
             && let Some(id) = self.steam_match(&game.title)
         {
             for url in steam_urls(&id) {
@@ -419,6 +462,14 @@ fn set_art(game: &mut Game, url: String, kind: ArtworkKind, source: &str) {
     game.art.kind = kind;
     game.art.source = source.into();
 }
+fn roblox_image_url(value: &str) -> bool {
+    url::Url::parse(value).is_ok_and(|url| {
+        url.scheme() == "https"
+            && url
+                .host_str()
+                .is_some_and(|host| host == "rbxcdn.com" || host.ends_with(".rbxcdn.com"))
+    })
+}
 pub fn provider_name(id: &str) -> &str {
     match id {
         "steam" => "Steam",
@@ -429,6 +480,7 @@ pub fn provider_name(id: &str) -> &str {
         "gog" => "GOG Galaxy",
         "heroic" => "Heroic Games Launcher",
         "legendary" => "Legendary",
+        "roblox" => "Roblox",
         _ => "Application",
     }
 }
@@ -541,7 +593,12 @@ pub fn share_covers(games: &mut [Game]) {
         .filter(|g| !g.artwork.is_empty() && g.art.kind == ArtworkKind::Cover)
         .map(|g| {
             (
-                (normalized_title(&g.title), g.art.minecraft_version.clone()),
+                (
+                    normalized_title(&g.title),
+                    g.art.minecraft_version.clone(),
+                    g.art.roblox_universe,
+                    g.provider == "roblox",
+                ),
                 (g.artwork.clone(), g.art.source.clone()),
             )
         })
@@ -551,6 +608,8 @@ pub fn share_covers(games: &mut [Game]) {
             && let Some((url, source)) = covers.get(&(
                 normalized_title(&game.title),
                 game.art.minecraft_version.clone(),
+                game.art.roblox_universe,
+                game.provider == "roblox",
             ))
         {
             set_art(game, url.clone(), ArtworkKind::Cover, source);

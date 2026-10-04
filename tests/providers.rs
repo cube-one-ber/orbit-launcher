@@ -179,6 +179,7 @@ fn saved_metadata_survives_refresh() {
         launch_uri: None,
         directory: None,
         favorite: false,
+        source_rank: 0,
         last_played: 0,
     });
     settings.favorites.push("custom:1".into());
@@ -210,6 +211,7 @@ fn missing_executable_reports_actionable_error() {
         launch_uri: None,
         directory: None,
         favorite: false,
+        source_rank: 0,
         last_played: 0,
     };
     assert!(
@@ -245,6 +247,7 @@ fn launch_arguments_are_not_interpreted_by_a_shell() {
         launch_uri: None,
         directory: Some(t.path().into()),
         favorite: false,
+        source_rank: 0,
         last_played: 0,
     };
     providers::launch(&game).unwrap();

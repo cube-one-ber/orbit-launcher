@@ -4,7 +4,8 @@ A local-first game and application launcher written in **Rust**, with a native *
 
 ## Features
 
-- **One library:** Steam, Lutris, Prism Launcher, Modrinth Launcher, Heroic, Legendary, Epic Games and GOG Galaxy, with platform availability shown below.
+- **One library:** Steam, Lutris, Prism Launcher, Modrinth Launcher, Heroic, Legendary, Roblox, Epic Games and GOG Galaxy, with platform availability shown below.
+- **Roblox top five:** a bundled Chrome/Chromium extension syncs your most played experiences from the last week, with personal playtime, Roblox artwork and direct joins.
 - **Clean dark and light themes:** searchable grid/list views, compact cards, favorites, recent launches and keyboard shortcuts.
 - **Better artwork:** launcher covers, public store artwork, Modrinth galleries, offline caching and per-game custom covers.
 - **Minecraft update art:** covers match each instance's installed game drop or update, with an option to prefer modpack galleries.
@@ -26,6 +27,7 @@ A local-first game and application launcher written in **Rust**, with a native *
 | Modrinth Launcher | Yes | Implemented | Read-only legacy/current databases, custom data folders, installed instance versions; current instance launch links |
 | Heroic Games Launcher | Yes | Implemented | Installed Epic, GOG and Amazon games; native/Flatpak launching, cached store artwork and quiet launch requests |
 | Legendary | Yes | Implemented | Standalone Epic installations, local metadata, CLI launching with the matching configuration folder |
+| Roblox | Report import; compatible client required | Implemented | Browser sync of personal weekly top five, public thumbnails; direct Roblox join links |
 | Epic Games | Unavailable | Implemented | Installed `.item` manifests; Epic protocol launching, excluding incomplete installs, DLC and engine plugins |
 | GOG Galaxy | Unavailable | Implemented | Registry game folders and `goggame-*.info`; Galaxy launching with game ID and path |
 | Custom games/apps and JSON providers | Yes | Implemented | Executable, separate arguments, optional working folder and local artwork |
@@ -66,7 +68,7 @@ Use your actual Craft path. `-Package` stages Qt/KDE dependencies and runs isola
 
 Choose **dark or light mode**, switch between grid and list views, and adjust card size in Appearance. Search, source filters, favorites and recent launches keep the library easy to navigate. Browse controls help configure sources and add a game or application. Invalid forms keep your input for correction.
 
-The default library contains actual installed games. Sample entries appear only with `--demo`. Orbit does not download your account library or require credentials. A successful launch message confirms dispatch of the request; it does not confirm that the game reached its main menu.
+The default library contains actual installed games and, after connecting browser sync, your Roblox weekly top five. Sample entries appear only with `--demo`. Orbit does not ask for account credentials; Roblox authentication stays in your signed-in browser. A successful launch message confirms dispatch of the request; it does not confirm that the game reached its main menu.
 
 Under **Sources**, enable integrations, add absolute paths, or set a launcher command override:
 
@@ -78,6 +80,7 @@ Under **Sources**, enable integrations, add absolute paths, or set a launcher co
 | Modrinth | Its application data directory containing `app.db`, or `app.db` itself; custom content folders are read from its settings |
 | Heroic | Its configuration folder containing `legendaryConfig`, `gog_store` or `nile_config` |
 | Legendary | Its configuration folder containing `installed.json`, or `installed.json` itself |
+| Roblox | The extension's `orbit-roblox-top-games.json` report, or its download folder; leave empty to use Downloads |
 | Epic | A manifest directory containing `.item` files |
 | GOG | A game folder or library with `goggame-*.info` in immediate game folders |
 
@@ -90,6 +93,8 @@ Modrinth discovery supports both legacy `profiles` and current `instances` datab
 Heroic reads installed Epic, GOG and Amazon records rather than importing every owned game. Play requests `--no-gui` and `gui=false` so current Heroic builds keep the main window hidden, including when already running. Heroic still manages Wine/Proton, accounts and launch settings. Older builds or account/error prompts may show UI.
 
 Legendary discovers standalone installations and starts `legendary launch -- <app-name>` with the discovered folder in `LEGENDARY_CONFIG_PATH`. Install Legendary and sign in through its CLI first. Heroic-managed Epic games belong to the Heroic source; standalone Legendary discovery does not automatically scan Heroic folders. See the [Heroic and Legendary guide](docs/launchers.md) for paths and command overrides.
+
+For Roblox, use **Sources → Roblox → Configure → Set up browser sync**. Orbit prepares the embedded Chrome/Chromium extension and opens the Extensions page. Enable Developer mode and **Load unpacked** once; Chrome requires this browser step for an unpublished extension. Visit Roblox while signed in to sync automatically, at most every 15 minutes. Orbit watches the local report and shows your top five **from the last week**, with playtime and account name. Play joins the selected experience directly, skipping Roblox's home screen. See the [Roblox setup guide](docs/roblox.md) for redirected downloads, offline use, command overrides and current release limitations.
 
 Settings live in `$XDG_CONFIG_HOME/orbit/settings.json` (normally `~/.config/orbit/settings.json`) on Linux and `%APPDATA%\Orbit\settings.json` on Windows. `ORBIT_CONFIG_DIR` overrides the directory. Writes atomically replace the file. Legacy accent-based settings retain favorites, source paths and history, and default to dark mode. Malformed settings are reported and protected from automatic overwrite; correct the file or move it aside, then restart. `--light` selects and saves light mode unless used with `--demo`.
 
@@ -118,7 +123,7 @@ The first command downloads and validates public covers without launching games.
 
 ### JSON providers
 
-Create a `providers` folder inside Orbit's configuration directory, add a manifest such as [`examples/local-games.json`](examples/local-games.json), and refresh. Sources can open this directory. Each provider appears in navigation and Sources and can be disabled. IDs must be unique ASCII letters, digits or hyphens; `steam`, `lutris`, `prism`, `modrinth`, `heroic`, `legendary`, `epic`, `gog` and `custom` are reserved. Game IDs are namespaced automatically.
+Create a `providers` folder inside Orbit's configuration directory, add a manifest such as [`examples/local-games.json`](examples/local-games.json), and refresh. Sources can open this directory. Each provider appears in navigation and Sources and can be disabled. IDs must be unique ASCII letters, digits or hyphens; `steam`, `lutris`, `prism`, `modrinth`, `heroic`, `legendary`, `roblox`, `epic`, `gog` and `custom` are reserved. Game IDs are namespaced automatically.
 
 ```json
 {
@@ -162,6 +167,7 @@ Ensure `~/.local/bin` is on the desktop session's `PATH`, or use its absolute pa
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked --no-default-features
+node --test browser-extension/roblox/tests/sync.test.cjs
 QMAKE=/usr/bin/qmake6 cargo build --locked
 scripts/check-ui.sh
 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software target/debug/orbit --demo --smoke-test
@@ -169,7 +175,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software target/debug/orbit --demo --
 
 Rust tests cover Steam libraries and escaped Windows paths, read-only Lutris queries, custom Prism directories, Epic/GOG fixtures, both Modrinth schemas, Heroic’s three stores, Legendary configuration/metadata, quiet launch arguments, artwork selection/cache/offline behavior, Minecraft version matching, extensions, protocols, metadata migration and repeated settings replacement. Windows CI also exercises a temporary test-owned registry key. UI checks cover both palettes, search, favorites, filters, views, dialogs, custom games, validation, compact navigation, image/icon error fallbacks, artwork preferences and demo isolation.
 
-The 0.4 update passed **60 Rust tests**, core/full-GUI Clippy and offscreen UI checks locally on Linux. Public artwork downloads and an offline GUI restart were also verified. Windows CI includes a console-window suppression check. Native Windows game launches and clean-machine deployment remain on the [release checklist](TODO.md).
+The 0.5 update includes **70 Rust tests** and **8 browser sync tests**, plus core/full-GUI Clippy and offscreen UI checks. Roblox coverage includes personal rankings, account isolation, bounded reports, direct-join validation, public artwork and cached offline use. Windows CI includes a console-window suppression check. Real signed-in Roblox sync, native Windows game launches and clean-machine deployment remain on the [release checklist](TODO.md).
 
 The smoke test loads the Kirigami window and exits automatically. Add `--screenshot /absolute/path/preview.png` to capture the rendered page, or `--light` for its light theme. On Windows, run `scripts/check-ui.ps1 -Executable <path-to-orbit.exe>` after building. See [TODO.md](TODO.md) for native Windows, accessibility and packaging work.
 

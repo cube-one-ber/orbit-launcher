@@ -41,10 +41,14 @@ fn main() {
         ),
         ("The Witcher", "gog", "1207658924", "", ""),
         ("Hades", "epic", "fixture", "", ""),
+        ("DOORS", "roblox", "2440500124", "", ""),
     ] {
         let mut game: Game = serde_json::from_value(json!({"id":format!("{provider}:{id}"), "title":title, "provider":provider, "subtitle":"", "artwork":""})).unwrap();
         if provider == "steam" {
             game.art.remote = artwork::steam_urls(id);
+        }
+        if provider == "roblox" {
+            game.art.roblox_universe = id.parse().ok();
         }
         if !version.is_empty() {
             game.art.minecraft_version = Some(version.into());

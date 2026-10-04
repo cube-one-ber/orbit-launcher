@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Orbit Roblox Sync",
+  "version": "0.1.0",
+  "description": "Sync your five most played Roblox experiences from the last week to Orbit. Login stays in your browser.",
+  "permissions": ["downloads", "storage"],
+  "host_permissions": ["https://www.roblox.com/*", "https://users.roblox.com/*", "https://apis.roblox.com/*", "https://games.roblox.com/*"],
+  "background": { "scripts": ["report.js", "background.js"] },
+  "action": { "default_popup": "popup.html", "default_title": "Orbit Roblox Sync" },
+  "browser_specific_settings": { "gecko": { "id": "roblox-sync@orbit-launcher.local", "strict_min_version": "140.0", "data_collection_permissions": { "required": ["websiteActivity"] } } },
+  "content_scripts": [{
+    "matches": ["https://www.roblox.com/*"],
+    "js": ["report.js", "content.js"],
+    "run_at": "document_idle"
+  }]
+}

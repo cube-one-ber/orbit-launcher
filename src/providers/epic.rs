@@ -134,6 +134,7 @@ impl Provider for Epic {
                             environment: Default::default(),
                             directory: None,
                             favorite: false,
+                            source_rank: 0,
                             last_played: 0,
                         });
                     }

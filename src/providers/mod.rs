@@ -7,8 +7,10 @@ mod legendary;
 mod lutris;
 mod modrinth;
 mod prism;
+mod roblox;
 mod steam;
 use crate::{model::*, store};
+pub use roblox::report_signature as roblox_report_signature;
 use serde::Deserialize;
 use std::{
     collections::HashSet,
@@ -18,7 +20,7 @@ use std::{
 };
 pub use {
     epic::Epic, gog::Gog, heroic::Heroic, legendary::Legendary, lutris::Lutris, modrinth::Modrinth,
-    prism::Prism, steam::Steam,
+    prism::Prism, roblox::Roblox, steam::Steam,
 };
 
 pub trait Provider: Send {
@@ -102,6 +104,7 @@ pub fn discover(settings: &Settings, config_dir: &Path) -> Library {
         Box::new(Modrinth),
         Box::new(Heroic),
         Box::new(Legendary),
+        Box::new(Roblox),
         Box::new(Epic),
         Box::new(Gog),
     ];
@@ -113,6 +116,7 @@ pub fn discover(settings: &Settings, config_dir: &Path) -> Library {
         "modrinth",
         "heroic",
         "legendary",
+        "roblox",
         "epic",
         "gog",
         "custom",

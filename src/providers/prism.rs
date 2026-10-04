@@ -150,6 +150,7 @@ impl Provider for Prism {
                     launch_uri: None,
                     directory: None,
                     favorite: false,
+                    source_rank: 0,
                     last_played: properties
                         .get("lastLaunchTime")
                         .and_then(|s| s.parse::<u64>().ok())

@@ -23,7 +23,7 @@ Item {
                 switch (checks.step++) {
                 case 0:
                     checks.verify(backend.demo, "UI checks require --demo");
-                    checks.verify(app.library.games.length === 9, "Demo library loaded");
+                    checks.verify(app.library.games.length === 10, "Demo library loaded");
                     checks.verify(app.library.providers.some(p=>p.id === "modrinth"), "Modrinth is available in navigation");
                     checks.verify(app.library.providers.some(p=>p.id === "heroic") && app.library.providers.some(p=>p.id === "legendary"), "Heroic and Legendary are available in navigation");
                     app.query = "hollow";
@@ -74,7 +74,7 @@ Item {
                     backend.configure(JSON.stringify({view:"grid"}));
                     break;
                 case 9:
-                    checks.verify(app.library.games.length === 9, "Custom game removal works");
+                    checks.verify(app.library.games.length === 10, "Custom game removal works");
                     checks.verify(app.compactNavigation, "Narrow window uses compact navigation");
                     app.changeSection("appearance");
                     app.openSource("steam");
@@ -116,7 +116,19 @@ Item {
                     break;
                 case 17:
                     app.closeSource();
-                    console.log("ORBIT_UI_TEST_PASS: dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, Heroic, Legendary, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
+                    app.sourceFilter = "roblox";
+                    break;
+                case 18:
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "DOORS", "Roblox source filter works");
+                    checks.verify(app.sortBy === "Weekly playtime" && app.visibleGames[0].source_rank === 1, "Roblox sorts by weekly ranking");
+                    checks.verify(backend.prepare_roblox_extension() === "", "Demo cannot install browser extensions");
+                    app.openSource("roblox");
+                    break;
+                case 19:
+                    app.closeSource();
+                    app.sourceFilter = "steam";
+                    checks.verify(app.sortBy === "Name", "Weekly sorting does not leak to other providers");
+                    console.log("ORBIT_UI_TEST_PASS: dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, Heroic, Legendary, Roblox weekly ranking and setup isolation, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
                     checks.running = false;
                     Qt.quit();
                     break;

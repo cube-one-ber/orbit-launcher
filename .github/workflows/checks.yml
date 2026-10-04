@@ -15,6 +15,24 @@ env:
   KDE_VERSION: '6.13.0'
 
 jobs:
+  browser-extension:
+    name: Roblox browser sync
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test browser-extension/roblox/tests/sync.test.cjs
+      - name: Package both browser variants
+        run: python scripts/package-roblox-extension.py target/artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orbit-roblox-browser-extension
+          path: target/artifacts/orbit-roblox-*.zip
+          if-no-files-found: error
+
   format:
     name: Rust formatting
     runs-on: ubuntu-24.04
