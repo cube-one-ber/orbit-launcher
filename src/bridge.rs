@@ -572,6 +572,13 @@ fn demo_library() -> Library {
             "Minecraft 1.21.5 · Modrinth Launcher",
         ),
         ("DOORS", "roblox", "#1 · 4h 20m last week · @Demo_Player"),
+        ("Diablo IV", "battlenet", "Installed · Battle.net"),
+        (
+            "Assassin’s Creed Odyssey",
+            "ubisoft",
+            "Installed · Ubisoft Connect",
+        ),
+        ("A Short Hike", "itch", "Installed · itch.io"),
     ]
     .into_iter()
     .enumerate()
@@ -593,6 +600,9 @@ fn demo_library() -> Library {
                 5 => "413150",
                 6 => "275850",
                 7 => "632470",
+                10 => "2344520",
+                11 => "812140",
+                12 => "1055540",
                 _ => "",
             }),
             ..Default::default()
@@ -617,6 +627,9 @@ fn demo_library() -> Library {
             ("heroic", "Heroic Games Launcher", 1),
             ("legendary", "Legendary", 1),
             ("roblox", "Roblox", 1),
+            ("battlenet", "Battle.net", 1),
+            ("ubisoft", "Ubisoft Connect", 1),
+            ("itch", "itch.io", 1),
         ]
         .map(|(id, name, count)| ProviderStatus {
             id: id.into(),

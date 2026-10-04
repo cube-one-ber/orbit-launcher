@@ -4,13 +4,14 @@ A local-first game and application launcher written in **Rust**, with a native *
 
 ## Features
 
-- **One library:** Steam, Lutris, Prism Launcher, Modrinth Launcher, Heroic, Legendary, Roblox, Epic Games and GOG Galaxy, with platform availability shown below.
+- **One library:** Steam, Lutris, Prism Launcher, Modrinth Launcher, Heroic, Legendary, Roblox, Battle.net, Ubisoft Connect, itch.io, Epic Games and GOG Galaxy, with platform availability shown below.
 - **Roblox top five:** a bundled Chrome/Chromium extension syncs your most played experiences from the last week, with personal playtime, Roblox artwork and direct joins.
-- **Clean dark and light themes:** searchable grid/list views, compact cards, favorites, recent launches and keyboard shortcuts.
+- **Clean dark and light themes:** searchable grid/list views, compact cards, favorites, recent launches and keyboard shortcuts. The launcher list scrolls while settings stay accessible.
 - **Better artwork:** launcher covers, public store artwork, Modrinth galleries, offline caching and per-game custom covers.
 - **Minecraft update art:** covers match each instance's installed game drop or update, with an option to prefer modpack galleries.
 - **Direct Prism launches:** Play starts the selected instance while skipping Prism's main window; Prism manages accounts, Java and mod loaders.
 - **Quiet launches:** Heroic requests `--no-gui` and a hidden-window launch link; Legendary launches through its CLI, with console windows suppressed on Windows.
+- **More installed libraries:** Battle.net and Ubisoft Connect on Windows, plus itch.io and kitch on Linux/Windows. Recent itch-setup launches native games without its main window.
 - **Extendable:** add custom applications or implement JSON/Rust providers without changing the interface.
 
 ![Orbit in dark mode](docs/dark.png)
@@ -30,6 +31,9 @@ A local-first game and application launcher written in **Rust**, with a native *
 | Roblox | Report import; compatible client required | Implemented | Browser sync of personal weekly top five, public thumbnails; direct Roblox join links |
 | Epic Games | Unavailable | Implemented | Installed `.item` manifests; Epic protocol launching, excluding incomplete installs, DLC and engine plugins |
 | GOG Galaxy | Unavailable | Implemented | Registry game folders and `goggame-*.info`; Galaxy launching with game ID and path |
+| Battle.net | Unavailable | Implemented | Windows registry and bounded `product.db` discovery; known installed products, direct game requests and catalog artwork |
+| Ubisoft Connect | Unavailable | Implemented | Registry and `uplay_install.state` discovery; direct game links, local covers and exact store title artwork |
+| itch.io / kitch | Yes | Implemented | Read-only installed cave metadata, cached covers; recent itch-setup launches native games headlessly and handles required app fallback |
 | Custom games/apps and JSON providers | Yes | Implemented | Executable, separate arguments, optional working folder and local artwork |
 
 GitHub Actions builds the full GUI on **Linux x86_64, Windows x86_64, and macOS Intel/Apple Silicon**, runs core and offscreen UI checks, and uploads release binaries on every push and pull request. See [automated builds and downloads](docs/ci.md) for artifacts and runtime requirements. Native macOS game discovery is not implemented yet; custom games and JSON providers can be configured. Real Windows game launches and standalone deployment still need validation; follow the [Windows guide](docs/windows.md) and [detailed TODO](TODO.md).
@@ -81,10 +85,13 @@ Under **Sources**, enable integrations, add absolute paths, or set a launcher co
 | Heroic | Its configuration folder containing `legendaryConfig`, `gog_store` or `nile_config` |
 | Legendary | Its configuration folder containing `installed.json`, or `installed.json` itself |
 | Roblox | The extension's `orbit-roblox-top-games.json` report, or its download folder; leave empty to use Downloads |
+| Battle.net | Its Agent folder containing `product.db`, or the database itself |
+| Ubisoft Connect | Game folders or immediate library folders containing `uplay_install.state` |
+| itch.io / kitch | An `itch` or `kitch` data folder containing `db/butler.db`, or that database; Windows uses the current roaming profile |
 | Epic | A manifest directory containing `.item` files |
 | GOG | A game folder or library with `goggame-*.info` in immediate game folders |
 
-Commands are JSON arrays, such as `["C:/Apps/PrismLauncher/prismlauncher.exe"]`, `["/opt/PrismLauncher.AppImage"]` or `["flatpak", "run", "org.prismlauncher.PrismLauncher"]`. Orbit appends game-specific arguments. Epic and current Modrinth instances normally use their registered URI handlers; a command override receives the URI as one argument.
+Commands are JSON arrays, such as `["C:/Apps/PrismLauncher/prismlauncher.exe"]`, `["/opt/PrismLauncher.AppImage"]` or `["flatpak", "run", "org.prismlauncher.PrismLauncher"]`. Orbit appends game-specific arguments. Ubisoft Connect, Epic and current Modrinth instances normally use their registered URI handlers; a command override receives the URI as one argument.
 
 Prism uses `--dir <data-folder> --launch <instance-id>` to start the instance while skipping its main window. Prism still handles authentication, Java and mod loaders, and may show account or error dialogs. Existing Prism settings control console windows and reopening after the game exits.
 
@@ -93,6 +100,8 @@ Modrinth discovery supports both legacy `profiles` and current `instances` datab
 Heroic reads installed Epic, GOG and Amazon records rather than importing every owned game. Play requests `--no-gui` and `gui=false` so current Heroic builds keep the main window hidden, including when already running. Heroic still manages Wine/Proton, accounts and launch settings. Older builds or account/error prompts may show UI.
 
 Legendary discovers standalone installations and starts `legendary launch -- <app-name>` with the discovered folder in `LEGENDARY_CONFIG_PATH`. Install Legendary and sign in through its CLI first. Heroic-managed Epic games belong to the Heroic source; standalone Legendary discovery does not automatically scan Heroic folders. See the [Heroic and Legendary guide](docs/launchers.md) for paths and command overrides.
+
+Battle.net and Ubisoft Connect discover installed Windows games automatically and request the selected game directly. Their launchers may still show login, update or other required windows. itch.io reads installed games/apps from its local database and uses `itch-setup --run-game`; install a recent itch-setup with that command. Native games skip the main window, while HTML games, required prompts and older butler builds fall back to the app. See the [additional launcher guide](docs/common-launchers.md) for supported products, paths, overrides and platform limits.
 
 For Roblox, use **Sources → Roblox → Configure → Set up browser sync**. Orbit prepares the embedded Chrome/Chromium extension and opens the Extensions page. Enable Developer mode and **Load unpacked** once; Chrome requires this browser step for an unpublished extension. Visit Roblox while signed in to sync automatically, at most every 15 minutes. Orbit watches the local report and shows your top five **from the last week**, with playtime and account name. Play joins the selected experience directly, skipping Roblox's home screen. See the [Roblox setup guide](docs/roblox.md) for redirected downloads, offline use, command overrides and current release limitations.
 
@@ -123,7 +132,7 @@ The first command downloads and validates public covers without launching games.
 
 ### JSON providers
 
-Create a `providers` folder inside Orbit's configuration directory, add a manifest such as [`examples/local-games.json`](examples/local-games.json), and refresh. Sources can open this directory. Each provider appears in navigation and Sources and can be disabled. IDs must be unique ASCII letters, digits or hyphens; `steam`, `lutris`, `prism`, `modrinth`, `heroic`, `legendary`, `roblox`, `epic`, `gog` and `custom` are reserved. Game IDs are namespaced automatically.
+Create a `providers` folder inside Orbit's configuration directory, add a manifest such as [`examples/local-games.json`](examples/local-games.json), and refresh. Sources can open this directory. Each provider appears in navigation and Sources and can be disabled. IDs must be unique ASCII letters, digits or hyphens; `steam`, `lutris`, `prism`, `modrinth`, `heroic`, `legendary`, `roblox`, `epic`, `gog`, `battlenet`, `ubisoft`, `itch` and `custom` are reserved. Game IDs are namespaced automatically.
 
 ```json
 {
@@ -141,7 +150,7 @@ Create a `providers` folder inside Orbit's configuration directory, add a manife
 }
 ```
 
-`artwork` accepts a local `file:///...` URL or HTTPS image URL downloaded through Orbit’s cache. Optional `art` hints describe icons, remote covers, Minecraft versions and Modrinth projects; see the [artwork guide](docs/artwork.md). `directory` sets the working folder. Optional `environment` supplies environment variables to the launched command without changing Orbit’s own environment. Arguments pass directly without shell evaluation. Reading a manifest does not execute it; pressing Play does. Optional `launch_uri` takes precedence over `command` and accepts Epic game-launch links on Windows or Modrinth instance-launch links on Linux/Windows. Install and authentication links are rejected. Most extensions should use `command`.
+`artwork` accepts a local `file:///...` URL or HTTPS image URL downloaded through Orbit’s cache. Optional `art` hints describe icons, remote covers, Minecraft versions and Modrinth projects; see the [artwork guide](docs/artwork.md). `directory` sets the working folder. Optional `environment` supplies environment variables to the launched command without changing Orbit’s own environment. Arguments pass directly without shell evaluation. Reading a manifest does not execute it; pressing Play does. Optional `launch_uri` takes precedence over `command` and accepts Epic game-launch links on Windows Ubisoft direct game links on Windows, or Modrinth instance-launch and Roblox experience-join links on Linux/Windows. Ubisoft, Modrinth and Roblox links are restricted to the supported launch operation. Most extensions should use `command`.
 
 ### Rust providers
 
@@ -175,7 +184,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software target/debug/orbit --demo --
 
 Rust tests cover Steam libraries and escaped Windows paths, read-only Lutris queries, custom Prism directories, Epic/GOG fixtures, both Modrinth schemas, Heroic’s three stores, Legendary configuration/metadata, quiet launch arguments, artwork selection/cache/offline behavior, Minecraft version matching, extensions, protocols, metadata migration and repeated settings replacement. Windows CI also exercises a temporary test-owned registry key. UI checks cover both palettes, search, favorites, filters, views, dialogs, custom games, validation, compact navigation, image/icon error fallbacks, artwork preferences and demo isolation.
 
-The 0.5 update includes **70 Rust tests** and **8 browser sync tests**, plus core/full-GUI Clippy and offscreen UI checks. Roblox coverage includes personal rankings, account isolation, bounded reports, direct-join validation, public artwork and cached offline use. Windows CI includes a console-window suppression check. Real signed-in Roblox sync, native Windows game launches and clean-machine deployment remain on the [release checklist](TODO.md).
+The 0.6 update includes **81 Rust tests** and **8 browser sync tests**, plus core/full-GUI Clippy and offscreen UI checks. New coverage includes Battle.net/Ubisoft protobuf parsing, strict direct-launch arguments, itch.io install databases and configuration preservation. Roblox coverage includes personal rankings, account isolation, bounded reports, direct-join validation, public artwork and cached offline use. Windows CI includes a console-window suppression check. Real signed-in Roblox sync, native Windows game launches and clean-machine deployment remain on the [release checklist](TODO.md).
 
 The smoke test loads the Kirigami window and exits automatically. Add `--screenshot /absolute/path/preview.png` to capture the rendered page, or `--light` for its light theme. On Windows, run `scripts/check-ui.ps1 -Executable <path-to-orbit.exe>` after building. See [TODO.md](TODO.md) for native Windows, accessibility and packaging work.
 

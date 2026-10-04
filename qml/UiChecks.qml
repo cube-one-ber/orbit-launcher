@@ -23,7 +23,8 @@ Item {
                 switch (checks.step++) {
                 case 0:
                     checks.verify(backend.demo, "UI checks require --demo");
-                    checks.verify(app.library.games.length === 10, "Demo library loaded");
+                    checks.verify(app.library.games.length === 13, "Demo library loaded");
+                    checks.verify(app.navigationFits, "Settings navigation fits with all providers");
                     checks.verify(app.library.providers.some(p=>p.id === "modrinth"), "Modrinth is available in navigation");
                     checks.verify(app.library.providers.some(p=>p.id === "heroic") && app.library.providers.some(p=>p.id === "legendary"), "Heroic and Legendary are available in navigation");
                     app.query = "hollow";
@@ -74,8 +75,9 @@ Item {
                     backend.configure(JSON.stringify({view:"grid"}));
                     break;
                 case 9:
-                    checks.verify(app.library.games.length === 10, "Custom game removal works");
+                    checks.verify(app.library.games.length === 13, "Custom game removal works");
                     checks.verify(app.compactNavigation, "Narrow window uses compact navigation");
+                    checks.verify(app.navigationFits, "Settings navigation stays visible in a narrow window");
                     app.changeSection("appearance");
                     app.openSource("steam");
                     break;
@@ -128,7 +130,29 @@ Item {
                     app.closeSource();
                     app.sourceFilter = "steam";
                     checks.verify(app.sortBy === "Name", "Weekly sorting does not leak to other providers");
-                    console.log("ORBIT_UI_TEST_PASS: dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, Heroic, Legendary, Roblox weekly ranking and setup isolation, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
+                    app.sourceFilter = "battlenet";
+                    break;
+                case 20:
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "Diablo IV", "Battle.net filter works");
+                    app.openSource("battlenet");
+                    break;
+                case 21:
+                    app.closeSource(); app.sourceFilter = "ubisoft";
+                    break;
+                case 22:
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "Assassin’s Creed Odyssey", "Ubisoft filter works");
+                    app.openSource("ubisoft");
+                    break;
+                case 23:
+                    app.closeSource(); app.sourceFilter = "itch";
+                    break;
+                case 24:
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "A Short Hike", "itch.io filter works");
+                    app.openSource("itch");
+                    break;
+                case 25:
+                    app.closeSource();
+                    console.log("ORBIT_UI_TEST_PASS: Battle.net, Ubisoft Connect, itch.io, dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, Heroic, Legendary, Roblox weekly ranking and setup isolation, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
                     checks.running = false;
                     Qt.quit();
                     break;

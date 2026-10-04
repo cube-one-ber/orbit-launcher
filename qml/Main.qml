@@ -28,6 +28,7 @@ Kirigami.ApplicationWindow {
     readonly property bool darkMode: colors.dark
     readonly property color pageColor: colors.window
     readonly property bool compactNavigation: width < 980
+    readonly property bool navigationFits: appearanceNavigation.y + appearanceNavigation.height <= appearanceNavigation.parent.height
     readonly property string sectionTitle: section === "sources" ? "Sources" : section === "appearance" ? "Appearance" : section === "favorites" ? "Favorites" : section === "recent" ? "Recently played" : sourceFilter !== "all" ? providerName(sourceFilter) : "Library"
     property var visibleGames: {
         let games = library.games.filter(g => (sourceFilter === "all" || g.provider === sourceFilter)
@@ -41,7 +42,7 @@ Kirigami.ApplicationWindow {
     function changeSection(value) { section = value; sourceFilter = "all"; }
     function providerName(id) {
         const provider = library.providers.find(p=>p.id === id);
-        return provider ? provider.name : ({custom:"Custom games",epic:"Epic Games",gog:"GOG Galaxy",modrinth:"Modrinth Launcher",heroic:"Heroic Games Launcher",legendary:"Legendary"})[id] || id;
+        return provider ? provider.name : ({custom:"Custom games",epic:"Epic Games",gog:"GOG Galaxy",modrinth:"Modrinth Launcher",heroic:"Heroic Games Launcher",legendary:"Legendary",battlenet:"Battle.net",ubisoft:"Ubisoft Connect",itch:"itch.io"})[id] || id;
     }
     function openGame(game) { selectedGame = game; details.open(); }
     function closeGame() { details.close(); }
@@ -157,7 +158,7 @@ Kirigami.ApplicationWindow {
         property string symbol: "grid"
         property bool selected: false
         property string badge: ""
-        Layout.fillWidth: true; implicitHeight: 42; hoverEnabled: true
+        Layout.fillWidth: true; Layout.minimumHeight: 42; implicitHeight: 42; hoverEnabled: true
         Accessible.name: text
         background: Rectangle { radius: 7; color: nav.selected ? colors.selection : nav.hovered ? colors.hover : "transparent"; border.color: nav.activeFocus ? colors.accent : "transparent" }
         contentItem: RowLayout {
@@ -209,18 +210,26 @@ Kirigami.ApplicationWindow {
                     NavItem { text: "Favorites"; symbol: "star"; selected: root.section === "favorites"; badge: root.library.games.filter(g=>g.favorite).length.toString(); onClicked: root.changeSection("favorites") }
                     NavItem { text: "Recently played"; symbol: "clock"; selected: root.section === "recent"; onClicked: root.changeSection("recent") }
                     Controls.Label { visible: !root.compactNavigation; text: "LIBRARIES"; color: colors.faint; font { pixelSize: 10; weight: Font.Medium; letterSpacing: 1.2 } Layout.leftMargin: 12; Layout.topMargin: 28; Layout.bottomMargin: 8 }
-                    Repeater {
-                        model: root.library.providers.filter(p=>p.available && p.enabled)
-                        delegate: NavItem {
-                            required property var modelData
-                            text: modelData.name; symbol: "app"; badge: modelData.count.toString()
-                            selected: root.section === "library" && root.sourceFilter === modelData.id
-                            onClicked: { root.section = "library"; root.sourceFilter = modelData.id; }
+                    Controls.ScrollView {
+                        id: libraryNavigation
+                        Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 80
+                        clip: true; contentWidth: availableWidth
+                        Controls.ScrollBar.horizontal.policy: Controls.ScrollBar.AlwaysOff
+                        ColumnLayout {
+                            width: libraryNavigation.availableWidth; spacing: 4
+                            Repeater {
+                                model: root.library.providers.filter(p=>p.available && p.enabled)
+                                delegate: NavItem {
+                                    required property var modelData
+                                    text: modelData.name; symbol: "app"; badge: modelData.count.toString()
+                                    selected: root.section === "library" && root.sourceFilter === modelData.id
+                                    onClicked: { root.section = "library"; root.sourceFilter = modelData.id; }
+                                }
+                            }
                         }
                     }
-                    Item { Layout.fillHeight: true }
                     NavItem { text: "Sources"; symbol: "folder"; selected: root.section === "sources"; onClicked: root.changeSection("sources") }
-                    NavItem { text: "Appearance"; symbol: "settings"; selected: root.section === "appearance"; onClicked: root.changeSection("appearance") }
+                    NavItem { id: appearanceNavigation; text: "Appearance"; symbol: "settings"; selected: root.section === "appearance"; onClicked: root.changeSection("appearance") }
                     Controls.Label { visible: !root.compactNavigation; text: backend.demo ? "Preview mode" : "Orbit " + Qt.application.version; color: colors.faint; font.pixelSize: 11; Layout.leftMargin: 12; Layout.topMargin: 14; Layout.bottomMargin: 5 }
                 }
             }
@@ -473,7 +482,7 @@ Kirigami.ApplicationWindow {
         contentItem: ColumnLayout {
             spacing: 16
             Controls.Label { text: root.selectedGame ? root.selectedGame.subtitle : ""; color: colors.muted; Layout.fillWidth: true; wrapMode: Text.Wrap }
-            Controls.Label { text: root.selectedGame && root.selectedGame.provider === "prism" ? "Starts the instance directly; Prism's main window stays hidden." : root.selectedGame && root.selectedGame.provider === "roblox" ? "Joins the experience directly, skipping Roblox's home screen. Login or update prompts may still appear." : "Opens with " + (root.selectedGame ? root.providerName(root.selectedGame.provider) : ""); color: colors.faint; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            Controls.Label { text: root.selectedGame && root.selectedGame.provider === "prism" ? "Starts the instance directly; Prism's main window stays hidden." : root.selectedGame && root.selectedGame.provider === "roblox" ? "Joins the experience directly, skipping Roblox's home screen. Login or update prompts may still appear." : root.selectedGame && root.selectedGame.provider === "itch" ? "Native games start without itch’s main window on recent versions. Required prompts and other game types open the app." : root.selectedGame && ["battlenet", "ubisoft"].indexOf(root.selectedGame.provider) >= 0 ? "Requests this game directly. Launcher login, updates or other required UI may still appear." : "Opens with " + (root.selectedGame ? root.providerName(root.selectedGame.provider) : ""); color: colors.faint; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.Wrap }
             Controls.Label { text: root.selectedGame ? root.selectedGame.launch_notice || "" : ""; visible: text !== ""; color: colors.muted; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.Wrap }
             GameArtwork { game: root.selectedGame; theme: colors; Layout.fillWidth: true; Layout.preferredHeight: 180 }
             RowLayout {
@@ -506,7 +515,7 @@ Kirigami.ApplicationWindow {
                 id: sourceForm
                 width: sourceScroll.availableWidth
                 spacing: 12
-                Controls.Label { text: ({steam:"Add folders containing steamapps.",lutris:"Add Lutris data folders or pga.db files.",prism:"Add Prism data folders containing prismlauncher.cfg. Play skips Prism's main window.",modrinth:"Add Modrinth data folders containing app.db, or select an app.db path. Custom app directories are read from the database.",heroic:"Add Heroic configuration folders containing legendaryConfig, gog_store or nile_config. Select a command override for AppImages or portable installations.",legendary:"Add Legendary configuration folders or installed.json files. Orbit preserves the selected configuration when launching.",roblox:"Connect the bundled browser extension to sync your top five from last week. Your login stays in Chrome or Chromium. Play skips Roblox’s home screen.",epic:"Add Epic Games Launcher manifest folders (.item files).",gog:"Add GOG game folders or libraries containing goggame-*.info files."})[sourceDialog.sourceId] || "This provider reads its JSON manifest."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.muted; font.pixelSize: 12 }
+                Controls.Label { text: ({steam:"Add folders containing steamapps.",lutris:"Add Lutris data folders or pga.db files.",prism:"Add Prism data folders containing prismlauncher.cfg. Play skips Prism's main window.",modrinth:"Add Modrinth data folders containing app.db, or select an app.db path. Custom app directories are read from the database.",heroic:"Add Heroic configuration folders containing legendaryConfig, gog_store or nile_config. Select a command override for AppImages or portable installations.",legendary:"Add Legendary configuration folders or installed.json files. Orbit preserves the selected configuration when launching.",roblox:"Connect the bundled browser extension to sync your top five from last week. Your login stays in Chrome or Chromium. Play skips Roblox’s home screen.",epic:"Add Epic Games Launcher manifest folders (.item files).",gog:"Add GOG game folders or libraries containing goggame-*.info files.",battlenet:"Windows installations are detected automatically. Add Battle.net Agent folders or product.db files for other locations. Play requests the selected game directly; login and update prompts may appear.",ubisoft:"Windows installations are detected automatically. Add game folders or libraries containing uplay_install.state. Play requests the selected game directly; login and update prompts may appear.",itch:"Add itch or kitch data folders containing db/butler.db, or that database file. Requires recent itch-setup with --run-game support. Native games skip the main window; older butler versions and required prompts open the app."})[sourceDialog.sourceId] || "This provider reads its JSON manifest."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.muted; font.pixelSize: 12 }
                 Button { text: "Set up browser sync"; visible: sourceDialog.sourceId === "roblox"; onClicked: sourceDialog.extensionPath = backend.prepare_roblox_extension() }
                 Controls.Label { text: "In Chrome or Chromium, enable Developer mode on the Extensions page, choose Load unpacked, and select this folder. Then visit Roblox while signed in."; visible: sourceDialog.extensionPath !== ""; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.muted; font.pixelSize: 12 }
                 RowLayout { visible: sourceDialog.extensionPath !== ""; Layout.fillWidth: true

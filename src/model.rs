@@ -113,6 +113,9 @@ impl Default for Settings {
                 "roblox",
                 "epic",
                 "gog",
+                "battlenet",
+                "ubisoft",
+                "itch",
             ]
             .into_iter()
             .map(|id| (id.into(), SourceConfig::default()))

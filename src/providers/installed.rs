@@ -9,6 +9,28 @@ pub(super) struct Installed {
     pub art: Artwork,
 }
 
+pub(super) fn game(provider: &str, id: &str, title: String, path: &Path) -> Game {
+    Game {
+        id: format!("{provider}:{id}"),
+        title,
+        provider: provider.into(),
+        subtitle: format!("Installed · {}", crate::artwork::provider_name(provider)),
+        artwork: crate::artwork::local_cover(path),
+        art: Artwork {
+            icon: crate::artwork::local_icon(path),
+            ..Default::default()
+        },
+        launch_notice: String::new(),
+        command: vec![],
+        environment: Default::default(),
+        launch_uri: None,
+        directory: None,
+        favorite: false,
+        last_played: 0,
+        source_rank: 0,
+    }
+}
+
 pub(super) fn read_json(path: &Path, errors: &mut Vec<String>) -> Option<Value> {
     match fs::read(path) {
         Ok(bytes) => match serde_json::from_slice(&bytes) {

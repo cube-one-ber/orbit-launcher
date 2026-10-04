@@ -36,6 +36,7 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 - [x] Retain search, sorting, favorites, recents, grid/list views, refresh and custom entries.
 - [x] Add browse controls, inline validation and preserved input on failed submissions.
 - [x] List integrations dynamically with source-specific errors and configuration.
+- [x] Scroll the growing launcher list while keeping Sources and Appearance visible at small window sizes.
 - [x] Exercise both palettes, dialogs and compact navigation offscreen; save dark/light screenshots.
 - [ ] Manually verify keyboard-only use and screen-reader announcements on Linux and Windows.
   - Check tab order, focus, Escape, popup navigation and file/folder pickers.
@@ -82,10 +83,27 @@ Status: `[x]` implementation complete with local or CI verification of the appli
   - Check Heroic cold/already-running launches across supported versions and all three stores.
   - Check login/error prompts, Wine/Proton settings, cloud saves and AppImage/portable overrides.
   - Check multiple Legendary configurations, paths with spaces/Unicode, and no console flashes.
-- [ ] Add Battle.net, EA app and Ubisoft Connect discovery on Windows with installed-game fixtures.
-  - Use documented direct-game launch mechanisms and the quietest supported launcher mode.
-  - Keep authentication/error prompts available; document unavoidable launcher windows.
-- [ ] Add itch.io installed games and additional Minecraft launchers with local metadata fixtures.
+- [x] Add Battle.net installed Windows games from registry and protobuf `product.db`.
+  - Bound metadata reads, skip unknown components/test clients and missing installs, deduplicate product IDs.
+  - Dispatch the selected catalog product with one `--exec=launch <id>` argument; preserve executable overrides.
+  - Prefer catalog landscape artwork, then exact store matches and cached/local covers.
+- [x] Add Ubisoft Connect installed Windows games from registry and protobuf install-state markers.
+  - Read custom game/library folders, validate positive numeric IDs and prefer marker titles.
+  - Dispatch a restricted `uplay://launch/<id>/0` link or pass it to the configured executable.
+- [x] Add itch.io and kitch installed games/apps on Linux and Windows.
+  - Query only public game metadata and install locations in a read-only SQLite connection.
+  - Skip morphing/missing/external installs, preserve custom install locations and deduplicate games per database.
+  - Use recent `itch-setup --run-game` for headless native games, retaining upstream sandbox/preferences/prerequisite handling and app fallback.
+  - Preserve Linux XDG configuration; reject unsupported Windows data relocation and mark macOS unavailable.
+- [ ] Validate actual Battle.net, Ubisoft and itch.io game launches on native Windows/Linux.
+  - Record launcher versions; check cold and already-running requests, login/update/error prompts, spaces/Unicode and moved libraries.
+  - For itch.io, check current itch-setup, older butler fallback, native/HTML games, multiple installed uploads, sandbox defaults and prerequisites.
+  - Check Ubisoft install-state formats against real installations; registry discovery remains the fallback for default installs.
+  - Maintain Battle.net's product catalog and verify regional IDs, WoW Classic variants and newer products before adding mappings.
+- [ ] Add EA app and Rockstar Games Launcher installed-game discovery.
+  - Verify current installation manifests/registry and direct-game requests using upstream evidence and real fixtures.
+  - Keep launchers' account handling; do not invent hidden-window flags or guess game executables.
+- [ ] Add additional Minecraft launchers with local metadata fixtures and direct instance launch where supported.
 - [ ] Add an opt-in application source for Windows Start menu shortcuts and Linux desktop files.
   - Resolve platform shortcut/desktop-entry semantics without arbitrary shell evaluation.
   - Distinguish applications from launchers and avoid duplicate entries.
@@ -146,6 +164,10 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 - [x] Configure full Linux/Windows/macOS GUI release CI with downloadable build artifacts.
 
 ## Verification recorded for this pass
+
+- Linux 0.6: 81 Rust tests pass, including Battle.net/Ubisoft protobuf fixtures, strict Ubisoft URI validation, itch.io database/configuration cases and platform executable resolution. Core Clippy passes with `-D warnings`; Kirigami checks exercise all three new sources.
+- 0.6 artwork: real Diablo IV, Assassin’s Creed Odyssey and A Short Hike covers decode and cache successfully. New integrations still require real game launch validation; fixture/CI success does not confirm launcher window behavior.
+
 
 - Linux 0.4: 60 Rust unit/integration tests pass; core and full-GUI Clippy pass with `-D warnings`.
 - Heroic/Legendary: fixtures cover three Heroic stores, incomplete/DLC installs, URI encoding, quiet launch flags, Flatpak/portable commands, read-only files, configuration identity and actual child-process environment dispatch. Native Windows CI includes console suppression coverage.

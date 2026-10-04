@@ -14,6 +14,8 @@ Open a game's details and choose **Choose cover** to select a local image. **Res
 
 Steam discovery checks custom user grid images and both flat and nested library caches, preferring landscape images for cards. Lutris checks covers and banners separately from icons. GOG and Epic check installation folders. Heroic uses cached Epic/GOG/Amazon image metadata; Legendary uses its local Epic key images, with landscape artwork preferred. Heroic GOG entries also retain their product ID for public GOG artwork lookup. Identically named installed games can share a cover across sources; Minecraft instances must also have the same version.
 
+Battle.net provides curated product titles and artwork hints; its catalog is [`src/data/battlenet.json`](../src/data/battlenet.json). Ubisoft prefers local covers and exact title matches. itch.io uses the game metadata stored with installed caves, preferring a still cover before an animated cover. All three support custom covers and the shared offline cache.
+
 Roblox uses public experience thumbnails matched by universe ID, preferring 768×432 landscape artwork and falling back to the exact game's 512×512 icon. Pending or failed images keep the placeholder until a later refresh can resolve them. Roblox covers are cached for offline use and never shared with unrelated Steam titles or different Roblox universes. Optional `art.roblox_universe` is a positive numeric universe ID; artwork lookup does not use account credentials.
 
 ## Minecraft drops and updates

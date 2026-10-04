@@ -20,6 +20,12 @@ pub struct Platform {
     pub program_files: Vec<PathBuf>,
     pub steam_registry: Vec<PathBuf>,
 }
+#[derive(Clone, Debug)]
+pub struct LauncherInstall {
+    pub id: String,
+    pub title: String,
+    pub path: PathBuf,
+}
 impl Platform {
     pub fn current() -> Self {
         let os = if cfg!(windows) {
@@ -227,6 +233,37 @@ impl Platform {
             "GalaxyClient.exe",
         )
     }
+    pub fn itch_roots(&self) -> Vec<PathBuf> {
+        let base = if self.os == Os::Windows {
+            &self.roaming
+        } else {
+            &self.config_home
+        };
+        ["itch", "kitch"].map(|app| base.join(app)).into()
+    }
+    pub fn itch_command(&self, app: &str) -> String {
+        let binary = if self.os == Os::Windows {
+            "itch-setup.exe"
+        } else {
+            "itch-setup"
+        };
+        let path = if self.os == Os::Windows {
+            self.local.join(app).join(binary)
+        } else {
+            self.home.join(format!(".{app}")).join(binary)
+        };
+        executable(std::iter::once(path).chain(find_on_path(binary)), binary)
+    }
+    pub fn battlenet_command(&self) -> String {
+        executable(
+            self.program_files
+                .iter()
+                .map(|p| p.join("Battle.net/Battle.net.exe"))
+                .chain(battlenet_registry_client())
+                .chain(find_on_path("Battle.net.exe")),
+            "Battle.net.exe",
+        )
+    }
 }
 pub fn executable(paths: impl IntoIterator<Item = PathBuf>, fallback: &str) -> String {
     paths
@@ -291,7 +328,18 @@ pub fn validate_game_uri(uri: &str) -> Result<url::Url, String> {
                     && id.parse::<u64>().is_ok_and(|n| n > 0)
             }) && query.next().is_none()
         };
-    if (parsed.scheme() != "com.epicgames.launcher" && !modrinth && !roblox)
+    let ubisoft = parsed.scheme() == "uplay"
+        && parsed.host_str() == Some("launch")
+        && parsed.query().is_none()
+        && parsed.path_segments().is_some_and(|mut parts| {
+            parts.next().is_some_and(|id| {
+                !id.is_empty()
+                    && id.bytes().all(|b| b.is_ascii_digit())
+                    && id.parse::<u64>().is_ok_and(|n| n > 0)
+            }) && parts.next() == Some("0")
+                && parts.next().is_none()
+        });
+    if (parsed.scheme() != "com.epicgames.launcher" && !modrinth && !roblox && !ubisoft)
         || !parsed.username().is_empty()
         || parsed.password().is_some()
         || parsed.port().is_some()
@@ -324,6 +372,7 @@ pub fn open_game_uri(uri: &str) -> Result<(), String> {
             let launcher = match parsed.scheme() {
                 "modrinth" => "Modrinth Launcher",
                 "roblox" => "Roblox",
+                "uplay" => "Ubisoft Connect",
                 _ => "Epic Games Launcher",
             };
             Err(format!(
@@ -402,6 +451,125 @@ pub fn galaxy_registry_executable() -> Option<PathBuf> {
     None
 }
 
+#[cfg(windows)]
+pub fn ubisoft_registry_installs() -> Vec<LauncherInstall> {
+    use winreg::{RegKey, enums::*};
+    let mut records = vec![];
+    for hive in [HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER] {
+        for view in [KEY_WOW64_32KEY, KEY_WOW64_64KEY] {
+            if let Ok(key) = RegKey::predef(hive)
+                .open_subkey_with_flags(r"SOFTWARE\Ubisoft\Launcher\Installs", KEY_READ | view)
+            {
+                records.extend(ubisoft_installs_from_key(&key));
+            }
+        }
+    }
+    records
+}
+#[cfg(windows)]
+fn ubisoft_installs_from_key(key: &winreg::RegKey) -> Vec<LauncherInstall> {
+    key.enum_keys()
+        .flatten()
+        .filter_map(|id| {
+            let game = key.open_subkey(&id).ok()?;
+            let path: String = game.get_value("InstallDir").ok()?;
+            Some(LauncherInstall {
+                id,
+                title: game.get_value("DisplayName").unwrap_or_default(),
+                path: PathBuf::from(path),
+            })
+        })
+        .collect()
+}
+#[cfg(not(windows))]
+pub fn ubisoft_registry_installs() -> Vec<LauncherInstall> {
+    vec![]
+}
+
+#[cfg(windows)]
+#[derive(Default)]
+struct UninstallEntry {
+    title: String,
+    path: PathBuf,
+    uninstall: String,
+}
+#[cfg(windows)]
+fn uninstall_entries() -> Vec<UninstallEntry> {
+    use winreg::{RegKey, enums::*};
+    let mut records = vec![];
+    for hive in [HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER] {
+        for view in [KEY_WOW64_32KEY, KEY_WOW64_64KEY] {
+            if let Ok(key) = RegKey::predef(hive).open_subkey_with_flags(
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                KEY_READ | view,
+            ) {
+                records.extend(uninstall_entries_from_key(&key));
+            }
+        }
+    }
+    records
+}
+#[cfg(windows)]
+fn uninstall_entries_from_key(key: &winreg::RegKey) -> Vec<UninstallEntry> {
+    key.enum_keys()
+        .flatten()
+        .filter_map(|id| {
+            let game = key.open_subkey(id).ok()?;
+            Some(UninstallEntry {
+                title: game.get_value("DisplayName").unwrap_or_default(),
+                path: PathBuf::from(game.get_value::<String, _>("InstallLocation").ok()?),
+                uninstall: game.get_value("UninstallString").unwrap_or_default(),
+            })
+        })
+        .collect()
+}
+#[cfg(windows)]
+pub fn battlenet_registry_installs() -> Vec<LauncherInstall> {
+    battlenet_installs_from_entries(uninstall_entries())
+}
+#[cfg(windows)]
+fn battlenet_installs_from_entries(entries: Vec<UninstallEntry>) -> Vec<LauncherInstall> {
+    entries
+        .into_iter()
+        .filter_map(|entry| {
+            if !entry.uninstall.to_ascii_lowercase().contains("battle.net")
+                || entry.title.ends_with("Test")
+                || entry.title.ends_with("Beta")
+            {
+                return None;
+            }
+            // Inspect uninstall metadata only. Never execute the uninstall command.
+            let id = entry
+                .uninstall
+                .split("--uid=")
+                .nth(1)?
+                .split_whitespace()
+                .next()?
+                .trim_matches('"');
+            Some(LauncherInstall {
+                id: id.into(),
+                title: entry.title,
+                path: entry.path,
+            })
+        })
+        .collect()
+}
+#[cfg(not(windows))]
+pub fn battlenet_registry_installs() -> Vec<LauncherInstall> {
+    vec![]
+}
+#[cfg(windows)]
+fn battlenet_registry_client() -> Option<PathBuf> {
+    uninstall_entries()
+        .into_iter()
+        .find(|r| r.title == "Battle.net")
+        .map(|r| r.path.join("Battle.net.exe"))
+}
+#[cfg(not(windows))]
+fn battlenet_registry_client() -> Option<PathBuf> {
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -477,5 +645,55 @@ mod tests {
                 PathBuf::from(r"\\server\share\Steam")
             ]
         );
+    }
+}
+
+#[cfg(all(test, windows))]
+mod common_launcher_registry_tests {
+    use super::*;
+    #[test]
+    fn installed_registry_records_preserve_paths_without_executing_uninstall_commands() {
+        use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+        let hive = RegKey::predef(HKEY_CURRENT_USER);
+        let name = format!(
+            r"Software\OrbitTests\common-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let (key, _) = hive.create_subkey(&name).unwrap();
+        let (ubisoft, _) = key.create_subkey("Ubisoft").unwrap();
+        let (game, _) = ubisoft.create_subkey("12345").unwrap();
+        game.set_value("InstallDir", &r"D:\Games\Zoë game").unwrap();
+        drop(game);
+        let uplay = ubisoft_installs_from_key(&ubisoft);
+        let (uninstall, _) = key.create_subkey("Uninstall").unwrap();
+        for (id, title) in [
+            ("healthy", "Diablo fixture"),
+            ("beta", "Diablo fixture Beta"),
+        ] {
+            let (game, _) = uninstall.create_subkey(id).unwrap();
+            game.set_value("InstallLocation", &r"\\server\share\Diablo")
+                .unwrap();
+            game.set_value("DisplayName", &title).unwrap();
+            game.set_value(
+                "UninstallString",
+                &r#""C:\Apps\Battle.net\Battle.net.exe" --uid=diablo3 --uninstall"#,
+            )
+            .unwrap();
+        }
+        let battle = battlenet_installs_from_entries(uninstall_entries_from_key(&uninstall));
+        drop(uninstall);
+        drop(ubisoft);
+        drop(key);
+        hive.delete_subkey_all(&name).unwrap();
+        assert_eq!(uplay.len(), 1);
+        assert_eq!(uplay[0].id, "12345");
+        assert_eq!(uplay[0].path, PathBuf::from(r"D:\Games\Zoë game"));
+        assert_eq!(battle.len(), 1);
+        assert_eq!(battle[0].id, "diablo3");
+        assert_eq!(battle[0].path, PathBuf::from(r"\\server\share\Diablo"));
     }
 }

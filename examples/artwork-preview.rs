@@ -42,6 +42,9 @@ fn main() {
         ("The Witcher", "gog", "1207658924", "", ""),
         ("Hades", "epic", "fixture", "", ""),
         ("DOORS", "roblox", "2440500124", "", ""),
+        ("Diablo IV", "steam", "2344520", "", ""),
+        ("Assassin’s Creed Odyssey", "steam", "812140", "", ""),
+        ("A Short Hike", "steam", "1055540", "", ""),
     ] {
         let mut game: Game = serde_json::from_value(json!({"id":format!("{provider}:{id}"), "title":title, "provider":provider, "subtitle":"", "artwork":""})).unwrap();
         if provider == "steam" {

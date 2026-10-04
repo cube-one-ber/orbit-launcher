@@ -481,6 +481,9 @@ pub fn provider_name(id: &str) -> &str {
         "heroic" => "Heroic Games Launcher",
         "legendary" => "Legendary",
         "roblox" => "Roblox",
+        "battlenet" => "Battle.net",
+        "ubisoft" => "Ubisoft Connect",
+        "itch" => "itch.io",
         _ => "Application",
     }
 }

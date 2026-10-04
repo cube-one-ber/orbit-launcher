@@ -368,6 +368,12 @@ fn provider_availability_matches_the_os() {
     assert_eq!(providers::Epic.available(), cfg!(windows));
     assert_eq!(providers::Gog.available(), cfg!(windows));
     assert_eq!(providers::Lutris.available(), !cfg!(windows));
+    assert_eq!(providers::BattleNet.available(), cfg!(windows));
+    assert_eq!(providers::Ubisoft.available(), cfg!(windows));
+    assert_eq!(
+        providers::Itch.available(),
+        cfg!(any(target_os = "linux", windows))
+    );
     assert!(providers::Steam.available());
     assert!(providers::Prism.available());
 }
