@@ -4,8 +4,10 @@ A local-first game and application launcher written in **Rust**, with a native *
 
 ## Features
 
-- **One library:** Steam, Lutris, Prism Launcher, Modrinth Launcher, Heroic, Legendary, Roblox, Battle.net, Ubisoft Connect, itch.io, Epic Games and GOG Galaxy, with platform availability shown below.
+- **One library:** Steam, Lutris, Prism Launcher, Modrinth Launcher, Heroic, Legendary, Roblox, Battle.net, Ubisoft Connect, itch.io, Epic Games, GOG Galaxy and standalone desktop games, with platform availability shown below.
 - **Roblox top five:** a bundled Chrome/Chromium extension syncs your most played experiences from the last week, with personal playtime, Roblox artwork and direct joins.
+- **Broader game support:** standalone Linux desktop/Flatpak games and emulators, plus Steam’s non-Steam shortcuts with their Proton settings.
+- **Cleaner Steam:** quiet direct launch requests, installed/shortcut filters, recent-account artwork and stale-install filtering.
 - **Clean dark and light themes:** searchable grid/list views, compact cards, favorites, recent launches and keyboard shortcuts. The launcher list scrolls while settings stay accessible.
 - **Better artwork:** launcher covers, public store artwork, Modrinth galleries, offline caching and per-game custom covers.
 - **Minecraft update art:** covers match each instance's installed game drop or update, with an option to prefer modpack galleries.
@@ -22,7 +24,7 @@ A local-first game and application launcher written in **Rust**, with a native *
 
 | Source | Linux | Windows | Discovery and launching |
 | --- | --- | --- | --- |
-| Steam | Yes | Implemented | Installed manifests, extra libraries, cached covers; native/Flatpak on Linux, registry/executable discovery on Windows |
+| Steam | Yes | Implemented | Installed manifests and non-Steam shortcuts, extra libraries, account-aware covers; quiet native/Flatpak/Windows launch requests |
 | Lutris | Yes | Unavailable | Installed games from the read-only database; native/Flatpak launching |
 | Prism Launcher | Yes | Implemented | Instances, custom directories, Minecraft update covers; direct instance launch skips the main window |
 | Modrinth Launcher | Yes | Implemented | Read-only legacy/current databases, custom data folders, installed instance versions; current instance launch links |
@@ -34,6 +36,7 @@ A local-first game and application launcher written in **Rust**, with a native *
 | Battle.net | Unavailable | Implemented | Windows registry and bounded `product.db` discovery; known installed products, direct game requests and catalog artwork |
 | Ubisoft Connect | Unavailable | Implemented | Registry and `uplay_install.state` discovery; direct game links, local covers and exact store title artwork |
 | itch.io / kitch | Yes | Implemented | Read-only installed cave metadata, cached covers; recent itch-setup launches native games headlessly and handles required app fallback |
+| Desktop games | Yes | Unavailable | Standalone games/emulators from native, Flatpak and Snap desktop entries; GIO preserves launch semantics |
 | Custom games/apps and JSON providers | Yes | Implemented | Executable, separate arguments, optional working folder and local artwork |
 
 GitHub Actions builds the full GUI on **Linux x86_64, Windows x86_64, and macOS Intel/Apple Silicon**, runs core and offscreen UI checks, and uploads release binaries on every push and pull request. See [automated builds and downloads](docs/ci.md) for artifacts and runtime requirements. Native macOS game discovery is not implemented yet; custom games and JSON providers can be configured. Real Windows game launches and standalone deployment still need validation; follow the [Windows guide](docs/windows.md) and [detailed TODO](TODO.md).
@@ -70,7 +73,7 @@ Use your actual Craft path. `-Package` stages Qt/KDE dependencies and runs isola
 
 ## Your library
 
-Choose **dark or light mode**, switch between grid and list views, and adjust card size in Appearance. Search, source filters, favorites and recent launches keep the library easy to navigate. Browse controls help configure sources and add a game or application. Invalid forms keep your input for correction.
+Choose **dark or light mode**, switch between grid and list views, and adjust card size in Appearance. Search, source filters, favorites and recent launches keep the library easy to navigate. Steam has separate filters for installed games and non-Steam shortcuts. Browse controls help configure sources and add a game or application. Invalid forms keep your input for correction.
 
 The default library contains actual installed games and, after connecting browser sync, your Roblox weekly top five. Sample entries appear only with `--demo`. Orbit does not ask for account credentials; Roblox authentication stays in your signed-in browser. A successful launch message confirms dispatch of the request; it does not confirm that the game reached its main menu.
 
@@ -78,7 +81,8 @@ Under **Sources**, enable integrations, add absolute paths, or set a launcher co
 
 | Source | Additional path should point to |
 | --- | --- |
-| Steam | A folder containing `steamapps` |
+| Steam | A Steam folder or extra library containing `steamapps`; shortcuts are read from the client’s `userdata` |
+| Desktop games | A Linux application folder containing `.desktop` files, or an individual desktop file |
 | Lutris | Its data directory or `pga.db` |
 | Prism | Its data directory containing `prismlauncher.cfg` and normally `instances` |
 | Modrinth | Its application data directory containing `app.db`, or `app.db` itself; custom content folders are read from its settings |
@@ -92,6 +96,10 @@ Under **Sources**, enable integrations, add absolute paths, or set a launcher co
 | GOG | A game folder or library with `goggame-*.info` in immediate game folders |
 
 Commands are JSON arrays, such as `["C:/Apps/PrismLauncher/prismlauncher.exe"]`, `["/opt/PrismLauncher.AppImage"]` or `["flatpak", "run", "org.prismlauncher.PrismLauncher"]`. Orbit appends game-specific arguments. Ubisoft Connect, Epic and current Modrinth instances normally use their registered URI handlers; a command override receives the URI as one argument.
+
+Steam Play requests tray mode and starts the selected game directly, preserving Steam launch options and Proton settings. Non-Steam shortcuts and custom artwork come from the most recent local account. Hidden shortcuts, support tools and stale recorded installations are skipped. Login and update prompts may still appear. See the [Steam guide](docs/steam.md).
+
+Desktop games detects standalone Linux games and emulators from application menus, including Flatpak and Snap. It uses `gio launch` to preserve desktop-entry quoting, arguments, field codes and working folders, and skips existing store launchers/game links. Install GLib’s `gio` if needed. See the [desktop game guide](docs/desktop-games.md).
 
 Prism uses `--dir <data-folder> --launch <instance-id>` to start the instance while skipping its main window. Prism still handles authentication, Java and mod loaders, and may show account or error dialogs. Existing Prism settings control console windows and reopening after the game exits.
 
@@ -132,7 +140,7 @@ The first command downloads and validates public covers without launching games.
 
 ### JSON providers
 
-Create a `providers` folder inside Orbit's configuration directory, add a manifest such as [`examples/local-games.json`](examples/local-games.json), and refresh. Sources can open this directory. Each provider appears in navigation and Sources and can be disabled. IDs must be unique ASCII letters, digits or hyphens; `steam`, `lutris`, `prism`, `modrinth`, `heroic`, `legendary`, `roblox`, `epic`, `gog`, `battlenet`, `ubisoft`, `itch` and `custom` are reserved. Game IDs are namespaced automatically.
+Create a `providers` folder inside Orbit's configuration directory, add a manifest such as [`examples/local-games.json`](examples/local-games.json), and refresh. Sources can open this directory. Each provider appears in navigation and Sources and can be disabled. IDs must be unique ASCII letters, digits or hyphens; `steam`, `lutris`, `prism`, `modrinth`, `heroic`, `legendary`, `roblox`, `epic`, `gog`, `battlenet`, `ubisoft`, `itch`, `desktop` and `custom` are reserved. Game IDs are namespaced automatically.
 
 ```json
 {
@@ -176,6 +184,7 @@ Ensure `~/.local/bin` is on the desktop session's `PATH`, or use its absolute pa
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked --no-default-features
+cargo test --locked # Includes the Qt-enabled library; requires GUI build dependencies
 node --test browser-extension/roblox/tests/sync.test.cjs
 QMAKE=/usr/bin/qmake6 cargo build --locked
 scripts/check-ui.sh
@@ -184,7 +193,7 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software target/debug/orbit --demo --
 
 Rust tests cover Steam libraries and escaped Windows paths, read-only Lutris queries, custom Prism directories, Epic/GOG fixtures, both Modrinth schemas, Heroic’s three stores, Legendary configuration/metadata, quiet launch arguments, artwork selection/cache/offline behavior, Minecraft version matching, extensions, protocols, metadata migration and repeated settings replacement. Windows CI also exercises a temporary test-owned registry key. UI checks cover both palettes, search, favorites, filters, views, dialogs, custom games, validation, compact navigation, image/icon error fallbacks, artwork preferences and demo isolation.
 
-The 0.6 update includes **81 Rust tests** and **8 browser sync tests**, plus core/full-GUI Clippy and offscreen UI checks. New coverage includes Battle.net/Ubisoft protobuf parsing, strict direct-launch arguments, itch.io install databases and configuration preservation. Roblox coverage includes personal rankings, account isolation, bounded reports, direct-join validation, public artwork and cached offline use. Windows CI includes a console-window suppression check. Real signed-in Roblox sync, native Windows game launches and clean-machine deployment remain on the [release checklist](TODO.md).
+The 0.6 update includes **92 Rust tests** and **8 browser sync tests**, plus core/full-GUI Clippy and offscreen UI checks. New coverage includes Battle.net/Ubisoft protobuf parsing, itch.io databases, Steam binary shortcuts/account selection/stale installs, desktop game filtering and real GIO dispatch of a fixture game. Roblox coverage includes personal rankings, account isolation, bounded reports, direct-join validation, public artwork and cached offline use. Windows CI includes a console-window suppression check. Real signed-in Roblox sync, native Windows game launches and clean-machine deployment remain on the [release checklist](TODO.md).
 
 The smoke test loads the Kirigami window and exits automatically. Add `--screenshot /absolute/path/preview.png` to capture the rendered page, or `--light` for its light theme. On Windows, run `scripts/check-ui.ps1 -Executable <path-to-orbit.exe>` after building. See [TODO.md](TODO.md) for native Windows, accessibility and packaging work.
 

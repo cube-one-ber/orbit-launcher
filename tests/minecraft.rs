@@ -162,7 +162,7 @@ fn steam_prefers_custom_art_and_landscape_cache_variants() {
     let temp = tempfile::tempdir().unwrap();
     write(
         &temp.path().join("steamapps/appmanifest_98765001.acf"),
-        "\"AppState\" { \"appid\" \"98765001\" \"name\" \"Artwork fixture\" }",
+        "\"AppState\" { \"appid\" \"98765001\" \"name\" \"Artwork fixture\" \"StateFlags\" \"4\" }",
     );
     write(
         &temp

@@ -1,5 +1,6 @@
 use super::*;
 use std::collections::BTreeMap;
+use std::path::Component;
 
 #[derive(Debug, Clone)]
 enum Value {
@@ -67,12 +68,15 @@ fn parse(input: &str) -> Result<BTreeMap<String, Value>, String> {
     fn object(
         tokens: &[String],
         i: &mut usize,
-        nested: bool,
+        depth: usize,
     ) -> Result<BTreeMap<String, Value>, String> {
+        if depth > 32 {
+            return Err("KeyValues nesting exceeds 32 levels".into());
+        }
         let mut out = BTreeMap::new();
         while *i < tokens.len() {
             if tokens[*i] == "}" {
-                if !nested {
+                if depth == 0 {
                     return Err("Unexpected closing brace".into());
                 }
                 *i += 1;
@@ -86,21 +90,23 @@ fn parse(input: &str) -> Result<BTreeMap<String, Value>, String> {
             let token = tokens.get(*i).ok_or("Missing value")?;
             *i += 1;
             let value = if token == "{" {
-                Value::Object(object(tokens, i, true)?)
+                Value::Object(object(tokens, i, depth + 1)?)
             } else {
                 Value::Text(token.strip_prefix('s').ok_or("Expected value")?.into())
             };
             out.insert(key, value);
         }
-        if nested {
+        if depth > 0 {
             return Err("Unclosed object".into());
         }
         Ok(out)
     }
-    object(&tokens, &mut 0, false)
+    object(&tokens, &mut 0, 0)
 }
 fn read(path: &Path) -> Result<BTreeMap<String, Value>, String> {
-    parse(&fs::read_to_string(path).map_err(|e| e.to_string())?)
+    let bytes =
+        super::binary_metadata::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    parse(std::str::from_utf8(&bytes).map_err(|e| format!("{}: {e}", path.display()))?)
         .map_err(|e| format!("{}: {e}", path.display()))
 }
 pub struct Steam;
@@ -111,13 +117,26 @@ impl Provider for Steam {
     fn name(&self) -> &str {
         "Steam"
     }
+    fn note(&self) -> &str {
+        "Installed games and the most recent account's non-Steam shortcuts. Play requests Steam's tray mode; login and update prompts may still appear."
+    }
     fn discover(&self, config: &SourceConfig) -> (Vec<Game>, Vec<String>) {
         let platform = crate::platform::Platform::current();
         let roots = roots(config, platform.steam_roots());
         let mut games = vec![];
         let mut errors = vec![];
         let mut seen = HashSet::new();
+        let mut seen_games = HashSet::new();
         for root in roots {
+            let configs = user_configs(&root, &mut errors);
+            discover_shortcuts(
+                &root,
+                &configs,
+                config,
+                &mut games,
+                &mut errors,
+                &mut seen_games,
+            );
             let mut libraries = vec![root.clone()];
             let folders = root.join("steamapps/libraryfolders.vdf");
             if folders.exists() {
@@ -142,6 +161,9 @@ impl Provider for Steam {
                 if !seen.insert(fs::canonicalize(&apps).unwrap_or_else(|_| apps.clone())) {
                     continue;
                 }
+                if !apps.exists() {
+                    continue;
+                }
                 let entries = match fs::read_dir(&apps) {
                     Ok(e) => e,
                     Err(e) => {
@@ -149,11 +171,11 @@ impl Provider for Steam {
                         continue;
                     }
                 };
-                for file in entries
-                    .flatten()
-                    .map(|e| e.path())
-                    .filter(|p| p.extension().is_some_and(|e| e == "acf"))
-                {
+                for file in entries.flatten().map(|e| e.path()).filter(|p| {
+                    p.extension().is_some_and(|e| e == "acf")
+                        && p.file_name()
+                            .is_some_and(|n| n.to_string_lossy().starts_with("appmanifest_"))
+                }) {
                     let data = match read(&file) {
                         Ok(d) => d,
                         Err(e) => {
@@ -167,40 +189,47 @@ impl Provider for Steam {
                     let Some(id) = app
                         .get("appid")
                         .and_then(Value::text)
-                        .filter(|s| s.parse::<u32>().is_ok())
+                        .filter(|s| s.parse::<u32>().is_ok_and(|id| id > 0))
                     else {
                         continue;
                     };
-                    let title = app.get("name").and_then(Value::text).unwrap_or(id);
+                    let title = app.get("name").and_then(Value::text).unwrap_or(id).trim();
                     // Steam's FullyInstalled flag is bit 4.
                     if app
                         .get("stateflags")
                         .and_then(Value::text)
                         .and_then(|s| s.parse::<u32>().ok())
-                        .is_some_and(|f| f & 4 == 0)
+                        .is_none_or(|f| f & 4 == 0)
                     {
                         continue;
                     }
                     if title.starts_with("Steamworks")
                         || title.starts_with("Steam Linux Runtime")
-                        || title.starts_with("Proton")
+                        || matches!(title, "Proton Experimental" | "Proton Hotfix")
+                        || title
+                            .strip_prefix("Proton ")
+                            .is_some_and(|v| v.starts_with(|c: char| c.is_ascii_digit()))
+                        || title.starts_with("GE-Proton")
                     {
                         continue;
                     }
-                    let windows_binary = platform.steam_command(&root);
-                    let mut command = launcher(
-                        config,
-                        is_flatpak(&root),
-                        if cfg!(windows) {
-                            &windows_binary
-                        } else {
-                            "steam"
-                        },
-                        "com.valvesoftware.Steam",
-                    );
-                    command.push(format!("steam://rungameid/{id}"));
+                    // A stale manifest must not resurrect a moved/deleted game.
+                    if let Some(folder) = app.get("installdir").and_then(Value::text) {
+                        let folder = Path::new(folder);
+                        if folder.components().count() != 1
+                            || !matches!(folder.components().next(), Some(Component::Normal(_)))
+                            || !apps.join("common").join(folder).is_dir()
+                        {
+                            continue;
+                        }
+                    }
+                    if !seen_games.insert(format!("steam:{id}")) {
+                        continue;
+                    }
+                    let mut command = steam_command(config, &root);
+                    command.extend(["-applaunch".into(), id.into()]);
                     let cache = root.join("appcache/librarycache");
-                    let mut artwork = custom_cover(&root, id);
+                    let mut artwork = custom_cover(&configs, id);
                     if artwork.is_empty() {
                         artwork = first_art(
                             [
@@ -286,16 +315,129 @@ impl Provider for Steam {
         (games, errors)
     }
 }
-fn custom_cover(root: &Path, id: &str) -> String {
-    let Ok(users) = fs::read_dir(root.join("userdata")) else {
-        return String::new();
+fn steam_command(config: &SourceConfig, root: &Path) -> Vec<String> {
+    let platform = crate::platform::Platform::current();
+    let binary = if cfg!(windows) {
+        platform.steam_command(root)
+    } else {
+        "steam".into()
     };
-    let mut grids: Vec<_> = users
+    let mut command = launcher(config, is_flatpak(root), &binary, "com.valvesoftware.Steam");
+    if !command.iter().any(|arg| arg == "-silent") {
+        command.push("-silent".into());
+    }
+    command
+}
+fn user_configs(root: &Path, errors: &mut Vec<String>) -> Vec<PathBuf> {
+    let login = root.join("config/loginusers.vdf");
+    if login.is_file() {
+        match read(&login) {
+            Ok(data) => {
+                if let Some(users) = data.get("users").and_then(Value::object) {
+                    for (id, user) in users {
+                        if user
+                            .object()
+                            .and_then(|u| u.get("mostrecent"))
+                            .and_then(Value::text)
+                            == Some("1")
+                            && let Ok(id) = id.parse::<u64>()
+                        {
+                            return vec![
+                                root.join("userdata")
+                                    .join((id as u32).to_string())
+                                    .join("config"),
+                            ];
+                        }
+                    }
+                }
+            }
+            Err(error) => errors.push(error),
+        }
+    }
+    let mut configs: Vec<_> = fs::read_dir(root.join("userdata"))
+        .into_iter()
         .flatten()
-        .map(|u| u.path().join("config/grid"))
+        .flatten()
+        .map(|user| user.path().join("config"))
+        .filter(|dir| dir.is_dir())
         .collect();
-    grids.sort();
-    first_art(grids.into_iter().flat_map(|dir| {
+    // Without login metadata prefer the most recently used local account.
+    configs.sort_by_key(|dir| {
+        (
+            std::cmp::Reverse(
+                [dir.join("localconfig.vdf"), dir.join("shortcuts.vdf")]
+                    .into_iter()
+                    .filter_map(|p| fs::metadata(p).ok()?.modified().ok())
+                    .max(),
+            ),
+            dir.clone(),
+        )
+    });
+    configs.truncate(1);
+    configs
+}
+fn discover_shortcuts(
+    root: &Path,
+    configs: &[PathBuf],
+    config: &SourceConfig,
+    games: &mut Vec<Game>,
+    errors: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+) {
+    for user in configs {
+        let file = user.join("shortcuts.vdf");
+        if !file.is_file() {
+            continue;
+        }
+        let shortcuts = match super::steam_shortcuts::read(&file) {
+            Ok(shortcuts) => shortcuts,
+            Err(error) => {
+                errors.push(format!("{}: {error}", file.display()));
+                continue;
+            }
+        };
+        for shortcut in shortcuts {
+            let game_id = (u64::from(shortcut.app_id) << 32) | 0x0200_0000;
+            let id = format!("steam:shortcut:{game_id}");
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+            let mut artwork = custom_cover(configs, &shortcut.app_id.to_string());
+            if artwork.is_empty() {
+                artwork = custom_cover(configs, &game_id.to_string());
+            }
+            let icon = file_url(Path::new(&shortcut.icon));
+            let mut command = steam_command(config, root);
+            command.push(format!("steam://rungameid/{game_id}"));
+            games.push(Game {
+                id,
+                title: shortcut.title,
+                provider: "steam".into(),
+                subtitle: "Non-Steam game · Steam".into(),
+                art: Artwork {
+                    kind: if artwork.is_empty() {
+                        ArtworkKind::Icon
+                    } else {
+                        ArtworkKind::Cover
+                    },
+                    icon: icon.clone(),
+                    ..Default::default()
+                },
+                artwork: if artwork.is_empty() { icon } else { artwork },
+                command,
+                launch_notice: String::new(),
+                environment: Default::default(),
+                launch_uri: None,
+                directory: None,
+                favorite: false,
+                source_rank: 0,
+                last_played: shortcut.last_played,
+            });
+        }
+    }
+}
+fn custom_cover(configs: &[PathBuf], id: &str) -> String {
+    first_art(configs.iter().map(|dir| dir.join("grid")).flat_map(|dir| {
         [format!("{id}_hero"), id.into(), format!("{id}p")]
             .into_iter()
             .flat_map(move |name| {

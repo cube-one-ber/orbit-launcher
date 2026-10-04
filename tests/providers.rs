@@ -49,17 +49,20 @@ fn steam_follows_external_library_and_deduplicates() {
     assert_eq!(matches.len(), 1);
     assert_eq!(
         matches[0].command,
-        ["fixture-steam", "steam://rungameid/9876543"]
+        ["fixture-steam", "-silent", "-applaunch", "9876543"]
     );
     assert!(!games.iter().any(|g| g.id == "steam:9876544"));
 }
 #[test]
 fn steam_corrupt_manifest_does_not_hide_other_games() {
     let t = tempfile::tempdir().unwrap();
-    write(&t.path().join("steamapps/broken.acf"), "\"AppState\" {");
     write(
-        &t.path().join("steamapps/good.acf"),
-        "\"AppState\" { \"appid\" \"9876555\" \"name\" \"Healthy fixture\" }",
+        &t.path().join("steamapps/appmanifest_broken.acf"),
+        "\"AppState\" {",
+    );
+    write(
+        &t.path().join("steamapps/appmanifest_9876555.acf"),
+        "\"AppState\" { \"appid\" \"9876555\" \"name\" \"Healthy fixture\" \"StateFlags\" \"4\" }",
     );
     let (games, errors) = Steam.discover(&source(t.path()));
     assert!(games.iter().any(|g| g.id == "steam:9876555"));
@@ -370,6 +373,7 @@ fn provider_availability_matches_the_os() {
     assert_eq!(providers::Lutris.available(), !cfg!(windows));
     assert_eq!(providers::BattleNet.available(), cfg!(windows));
     assert_eq!(providers::Ubisoft.available(), cfg!(windows));
+    assert_eq!(providers::Desktop.available(), cfg!(target_os = "linux"));
     assert_eq!(
         providers::Itch.available(),
         cfg!(any(target_os = "linux", windows))

@@ -23,7 +23,7 @@ Item {
                 switch (checks.step++) {
                 case 0:
                     checks.verify(backend.demo, "UI checks require --demo");
-                    checks.verify(app.library.games.length === 13, "Demo library loaded");
+                    checks.verify(app.library.games.length === 15, "Demo library loaded");
                     checks.verify(app.navigationFits, "Settings navigation fits with all providers");
                     checks.verify(app.library.providers.some(p=>p.id === "modrinth"), "Modrinth is available in navigation");
                     checks.verify(app.library.providers.some(p=>p.id === "heroic") && app.library.providers.some(p=>p.id === "legendary"), "Heroic and Legendary are available in navigation");
@@ -75,7 +75,7 @@ Item {
                     backend.configure(JSON.stringify({view:"grid"}));
                     break;
                 case 9:
-                    checks.verify(app.library.games.length === 13, "Custom game removal works");
+                    checks.verify(app.library.games.length === 15, "Custom game removal works");
                     checks.verify(app.compactNavigation, "Narrow window uses compact navigation");
                     checks.verify(app.navigationFits, "Settings navigation stays visible in a narrow window");
                     app.changeSection("appearance");
@@ -151,8 +151,25 @@ Item {
                     app.openSource("itch");
                     break;
                 case 25:
-                    app.closeSource();
-                    console.log("ORBIT_UI_TEST_PASS: Battle.net, Ubisoft Connect, itch.io, dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, Heroic, Legendary, Roblox weekly ranking and setup isolation, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
+                    app.closeSource(); app.changeSection("library"); app.sourceFilter = "desktop";
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "SuperTuxKart", "Desktop game filter works");
+                    app.openSource("desktop");
+                    break;
+                case 26:
+                    app.closeSource(); app.sourceFilter = "steam"; app.steamFilter = "shortcuts";
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "RetroArch", "Steam non-Steam shortcuts can be isolated");
+                    app.openGame(app.visibleGames[0]);
+                    break;
+                case 27:
+                    app.closeGame(); app.steamFilter = "installed";
+                    checks.verify(app.visibleGames.length === 4, "Installed Steam filter excludes shortcuts");
+                    app.steamFilter = "all";
+                    checks.verify(app.visibleGames.length === 5, "All Steam games includes shortcuts");
+                    app.sourceFilter = "desktop";
+                    checks.verify(app.visibleGames.length === 1, "Steam type filter does not leak to desktop games");
+                    app.changeSection("library");
+                    checks.verify(app.visibleGames.length === 15, "Full library returns after Steam filters");
+                    console.log("ORBIT_UI_TEST_PASS: Desktop games, Steam installed/shortcut filtering, Battle.net, Ubisoft Connect, itch.io, dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, Heroic, Legendary, Roblox weekly ranking and setup isolation, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
                     checks.running = false;
                     Qt.quit();
                     break;

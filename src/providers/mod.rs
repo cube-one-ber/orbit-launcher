@@ -1,6 +1,7 @@
 //! Providers discover local records; they never modify launcher-owned files.
 mod battlenet;
 mod binary_metadata;
+mod desktop;
 mod epic;
 mod gog;
 mod heroic;
@@ -12,6 +13,7 @@ mod modrinth;
 mod prism;
 mod roblox;
 mod steam;
+mod steam_shortcuts;
 mod ubisoft;
 use crate::{model::*, store};
 pub use roblox::report_signature as roblox_report_signature;
@@ -23,9 +25,9 @@ use std::{
     process::{Command, Stdio},
 };
 pub use {
-    battlenet::BattleNet, epic::Epic, gog::Gog, heroic::Heroic, itch::Itch, legendary::Legendary,
-    lutris::Lutris, modrinth::Modrinth, prism::Prism, roblox::Roblox, steam::Steam,
-    ubisoft::Ubisoft,
+    battlenet::BattleNet, desktop::Desktop, epic::Epic, gog::Gog, heroic::Heroic, itch::Itch,
+    legendary::Legendary, lutris::Lutris, modrinth::Modrinth, prism::Prism, roblox::Roblox,
+    steam::Steam, ubisoft::Ubisoft,
 };
 
 pub trait Provider: Send {
@@ -115,6 +117,7 @@ pub fn discover(settings: &Settings, config_dir: &Path) -> Library {
         Box::new(BattleNet),
         Box::new(Ubisoft),
         Box::new(Itch),
+        Box::new(Desktop),
     ];
     let mut library = Library::default();
     let mut provider_ids: HashSet<String> = [
@@ -130,6 +133,7 @@ pub fn discover(settings: &Settings, config_dir: &Path) -> Library {
         "battlenet",
         "ubisoft",
         "itch",
+        "desktop",
         "custom",
     ]
     .map(String::from)

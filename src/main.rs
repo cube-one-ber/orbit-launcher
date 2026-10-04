@@ -1,7 +1,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
-mod bridge;
 use cxx_qt::casting::Upcast;
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQmlEngine, QString, QUrl};
+use orbit_launcher::bridge;
 fn main() {
     if std::env::args().any(|a| a == "--help" || a == "-h") {
         println!(

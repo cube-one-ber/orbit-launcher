@@ -1,6 +1,6 @@
+use crate::{artwork, model::*, providers, store};
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::QString;
-use orbit_launcher::{artwork, model::*, providers, store};
 use std::{
     pin::Pin,
     sync::{
@@ -120,9 +120,9 @@ impl qobject::Backend {
             self.set_message(QString::from("Preview mode · Extension setup is disabled."));
             return QString::default();
         }
-        match orbit_launcher::browser_extension::prepare(&store::config_dir(), "chrome") {
+        match crate::browser_extension::prepare(&store::config_dir(), "chrome") {
             Ok(path) => {
-                let message = orbit_launcher::browser_extension::open_setup().err().unwrap_or_else(|| "Extension files are ready. In Chrome or Chromium, enable Developer mode, choose Load unpacked and select the displayed folder. Then visit Roblox while signed in.".into());
+                let message = crate::browser_extension::open_setup().err().unwrap_or_else(|| "Extension files are ready. In Chrome or Chromium, enable Developer mode, choose Load unpacked and select the displayed folder. Then visit Roblox while signed in.".into());
                 self.as_mut().set_message(QString::from(message.as_str()));
                 QString::from(path.to_string_lossy().as_ref())
             }
@@ -579,11 +579,17 @@ fn demo_library() -> Library {
             "Installed · Ubisoft Connect",
         ),
         ("A Short Hike", "itch", "Installed · itch.io"),
+        ("SuperTuxKart", "desktop", "Installed · Desktop game"),
+        ("RetroArch", "steam", "Non-Steam game · Steam"),
     ]
     .into_iter()
     .enumerate()
     .map(|(i, (title, provider, subtitle))| Game {
-        id: format!("demo:{i}"),
+        id: if i == 14 {
+            "steam:shortcut:demo".into()
+        } else {
+            format!("demo:{i}")
+        },
         title: title.into(),
         provider: provider.into(),
         subtitle: subtitle.into(),
@@ -620,7 +626,7 @@ fn demo_library() -> Library {
     Library {
         games,
         providers: [
-            ("steam", "Steam", 4),
+            ("steam", "Steam", 5),
             ("lutris", "Lutris", 1),
             ("prism", "Prism Launcher", 1),
             ("modrinth", "Modrinth Launcher", 1),
@@ -630,6 +636,7 @@ fn demo_library() -> Library {
             ("battlenet", "Battle.net", 1),
             ("ubisoft", "Ubisoft Connect", 1),
             ("itch", "itch.io", 1),
+            ("desktop", "Desktop games", 1),
         ]
         .map(|(id, name, count)| ProviderStatus {
             id: id.into(),

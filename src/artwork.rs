@@ -484,6 +484,7 @@ pub fn provider_name(id: &str) -> &str {
         "battlenet" => "Battle.net",
         "ubisoft" => "Ubisoft Connect",
         "itch" => "itch.io",
+        "desktop" => "Desktop games",
         _ => "Application",
     }
 }

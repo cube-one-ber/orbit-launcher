@@ -104,9 +104,16 @@ Status: `[x]` implementation complete with local or CI verification of the appli
   - Verify current installation manifests/registry and direct-game requests using upstream evidence and real fixtures.
   - Keep launchers' account handling; do not invent hidden-window flags or guess game executables.
 - [ ] Add additional Minecraft launchers with local metadata fixtures and direct instance launch where supported.
-- [ ] Add an opt-in application source for Windows Start menu shortcuts and Linux desktop files.
-  - Resolve platform shortcut/desktop-entry semantics without arbitrary shell evaluation.
-  - Distinguish applications from launchers and avoid duplicate entries.
+- [x] Add standalone Linux desktop game/emulator discovery, including Flatpak/Snap exports.
+  - Respect desktop IDs, user masking, categories, hidden entries and installed executables; skip existing store launchers/game links.
+  - Dispatch through GIO to preserve desktop-entry semantics; verify arguments, field codes and working folders with a fixture game.
+- [x] Import Steam non-Steam shortcuts and improve the Steam experience.
+  - Bound binary/text metadata reads, select the recent account, preserve custom grid art and use stable unsigned shortcut IDs.
+  - Launch installed games with tray-mode/direct requests; launch shortcuts through Steam to preserve Proton/options.
+  - Add installed/shortcut filters and exclude stale installs and support tools.
+- [ ] Validate real desktop/Flatpak game launches and Steam cold/already-running launches on Linux and Windows.
+  - Check account switching, custom shortcut artwork and Proton launch options.
+- [ ] Add an opt-in Windows Start menu application source.
 - [ ] Add emulator profiles, per-game arguments and custom entry editing.
 
 ## P2a — Modrinth, Minecraft and artwork (0.3)
@@ -165,7 +172,7 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 
 ## Verification recorded for this pass
 
-- Linux 0.6: 81 Rust tests pass, including Battle.net/Ubisoft protobuf fixtures, strict Ubisoft URI validation, itch.io database/configuration cases and platform executable resolution. Core Clippy passes with `-D warnings`; Kirigami checks exercise all three new sources.
+- Linux 0.6: 92 Rust tests pass, including Battle.net/Ubisoft protobuf fixtures, strict Ubisoft URI validation, itch.io database/configuration cases and platform executable resolution. Core and GUI-enabled tests pass; the Qt bridge is owned by the library so GUI test binaries link correctly. Clippy passes with `-D warnings`; Kirigami checks exercise Battle.net, Ubisoft, itch.io, desktop games and Steam installed/shortcut filters.
 - 0.6 artwork: real Diablo IV, Assassin’s Creed Odyssey and A Short Hike covers decode and cache successfully. New integrations still require real game launch validation; fixture/CI success does not confirm launcher window behavior.
 
 

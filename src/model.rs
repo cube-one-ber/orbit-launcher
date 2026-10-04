@@ -116,6 +116,7 @@ impl Default for Settings {
                 "battlenet",
                 "ubisoft",
                 "itch",
+                "desktop",
             ]
             .into_iter()
             .map(|id| (id.into(), SourceConfig::default()))

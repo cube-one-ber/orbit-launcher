@@ -252,7 +252,7 @@ fn common_source_defaults_migrate_reserve_ids_and_follow_platform_paths() {
     for cfg in settings.sources.values_mut() {
         cfg.enabled = false;
     }
-    for id in ["battlenet", "ubisoft", "itch"] {
+    for id in ["battlenet", "ubisoft", "itch", "desktop"] {
         assert!(settings.sources.contains_key(id));
         fs::create_dir_all(temp.path().join("providers")).unwrap();
         fs::write(
@@ -269,9 +269,9 @@ fn common_source_defaults_migrate_reserve_ids_and_follow_platform_paths() {
             .iter()
             .filter(|p| p.errors.iter().any(|e| e.contains("unique")))
             .count(),
-        3
+        4
     );
-    for id in ["battlenet", "ubisoft", "itch"] {
+    for id in ["battlenet", "ubisoft", "itch", "desktop"] {
         assert!(library.providers.iter().any(|p| p.id == id && !p.enabled));
     }
     let windows = Platform::from_environment(Os::Windows, |key| match key {
