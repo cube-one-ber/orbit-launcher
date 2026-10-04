@@ -304,12 +304,21 @@ fn common_launcher_executables_resolve_without_path() {
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         fs::write(file, []).unwrap();
     }
-    assert_eq!(platform.battlenet_command(), battle.to_string_lossy());
-    assert_eq!(platform.itch_command("itch"), itch.to_string_lossy());
+    assert_eq!(
+        fs::canonicalize(platform.battlenet_command()).unwrap(),
+        fs::canonicalize(&battle).unwrap()
+    );
+    assert_eq!(
+        fs::canonicalize(platform.itch_command("itch")).unwrap(),
+        fs::canonicalize(&itch).unwrap()
+    );
     platform.os = Os::Linux;
     platform.home = temp.path().into();
     let linux = platform.home.join(".kitch/itch-setup");
     fs::create_dir_all(linux.parent().unwrap()).unwrap();
     fs::write(&linux, []).unwrap();
-    assert_eq!(platform.itch_command("kitch"), linux.to_string_lossy());
+    assert_eq!(
+        fs::canonicalize(platform.itch_command("kitch")).unwrap(),
+        fs::canonicalize(&linux).unwrap()
+    );
 }
