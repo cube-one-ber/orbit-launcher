@@ -1,3 +1,4 @@
 /target/
 /.qmlls.ini
 *.user
+__pycache__/

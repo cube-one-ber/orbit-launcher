@@ -1,13 +1,18 @@
 name: CI
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Each pushed commit gets a build/release, even if a newer commit arrives.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'push' && github.sha || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -43,6 +48,8 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --check
+      - name: Check packaging and release tooling
+        run: python -m unittest discover -s scripts/tests -v
 
   build:
     name: Build / ${{ matrix.platform }}
@@ -105,6 +112,11 @@ jobs:
         with:
           path: target/ci-deps
           key: kirigami-v1-${{ matrix.os }}-${{ matrix.target }}-qt-${{ env.QT_VERSION }}-kde-${{ env.KDE_VERSION }}
+      - name: Cache third-party license sources
+        uses: actions/cache@v4
+        with:
+          path: target/ci-license-sources
+          key: runtime-licenses-v1-qt-${{ env.QT_VERSION }}-kde-${{ env.KDE_VERSION }}
       - name: Build Kirigami and configure Qt paths
         run: python scripts/ci-dependencies.py
       - name: Build the release application
@@ -114,12 +126,71 @@ jobs:
         run: |
           $extension = if ($IsWindows) { '.exe' } else { '' }
           ./scripts/check-ui.ps1 -Executable "target/${{ matrix.target }}/release/orbit$extension"
-      - name: Archive the release binary
+      - name: Package the application and its runtime
         run: python scripts/ci-archive.py ${{ matrix.target }} ${{ matrix.platform }}
-      - name: Upload the release binary
+      - name: Upload the runtime bundle
         uses: actions/upload-artifact@v4
         with:
           name: orbit-${{ matrix.platform }}
           path: target/artifacts/*
           if-no-files-found: error
           retention-days: 14
+
+  verify-package:
+    name: Verify package / ${{ matrix.platform }}
+    needs: build
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x86_64
+            archive: orbit-linux-x86_64.tar.gz
+          - os: windows-2022
+            platform: windows-x86_64
+            archive: orbit-windows-x86_64.zip
+          - os: macos-15-intel
+            platform: macos-x86_64
+            archive: orbit-macos-x86_64.tar.gz
+          - os: macos-15
+            platform: macos-arm64
+            archive: orbit-macos-arm64.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: orbit-${{ matrix.platform }}
+          path: target/download
+      - name: Install Linux display driver and virtual display
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y xvfb xauth libgl1 libegl1
+      # Deliberately no Rust, Qt, Kirigami, Craft, or MSVC setup in these jobs.
+      - name: Test the relocated archive with isolated runtime paths
+        run: python scripts/check-package.py ${{ matrix.platform }} target/download/${{ matrix.archive }}
+
+  prerelease:
+    name: Publish commit prerelease
+    if: github.event_name != 'pull_request'
+    needs: [format, browser-extension, verify-package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: orbit-*
+          merge-multiple: true
+          path: target/prerelease
+      - name: Publish validated packages and SHA-256 checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish-prerelease.py target/prerelease
