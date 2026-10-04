@@ -97,7 +97,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y ninja-build lld libgl1-mesa-dev \
+          sudo apt-get install --no-install-recommends -y ninja-build lld patchelf libgl1-mesa-dev \
             libxkbcommon-dev libegl1-mesa-dev libfontconfig1-dev libxcb-cursor0
       - name: Install Qt
         uses: jurplel/install-qt-action@v4

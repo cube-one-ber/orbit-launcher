@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest import mock
+import zipfile
 
 
 SCRIPTS = Path(__file__).resolve().parents[1]
@@ -21,9 +22,23 @@ def module(name):
 
 
 release = module("publish-prerelease")
+packaging = module("ci-archive")
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_windows_archive_accepts_cargo_license_timestamps(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            stage = directory / "orbit-windows-x86_64"
+            stage.mkdir()
+            license = stage / "LICENSE"
+            license.write_bytes(b"license contents")
+            os.utime(license, (0, 0))
+            path = packaging.archive_stage(stage, directory / "artifacts", "windows-x86_64")
+            with zipfile.ZipFile(path) as archive:
+                self.assertEqual(archive.read("orbit-windows-x86_64/LICENSE"), b"license contents")
+                self.assertEqual(archive.getinfo("orbit-windows-x86_64/LICENSE").date_time[0], 1980)
+
     def prepare(self, directory):
         for name in release.EXPECTED_ASSETS:
             (directory / name).write_bytes(f"payload for {name}".encode())

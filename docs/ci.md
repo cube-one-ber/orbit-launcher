@@ -39,7 +39,7 @@ installations are unnecessary. Keep the DLLs and subfolders beside the executabl
 Windows 10/11 x64 is required. Game clients and browsers remain separate installs.
 
 **Linux:** on Ubuntu 24.04 or a compatible newer distribution, extract the tar.gz
-and run `./orbit`. The launcher sets paths relative to its directory. Qt,
+and run `./orbit`. Libraries and QML imports resolve relative to the package. Qt,
 Kirigami, QML modules, plugins and native dependencies are included; glibc and
 graphics drivers come from your distribution.
 

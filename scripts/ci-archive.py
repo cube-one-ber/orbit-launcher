@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
+import zipfile
 
 
 WORKSPACE = Path(__file__).resolve().parent.parent
@@ -21,6 +22,20 @@ def run(*args, **kwargs):
 def copy_tree(source, destination):
     shutil.copytree(source, destination, dirs_exist_ok=True, symlinks=True,
                     ignore=shutil.ignore_patterns("*.pdb", "*.debug", "*.dSYM"))
+
+
+def archive_stage(stage, artifacts, platform):
+    artifacts.mkdir(parents=True, exist_ok=True)
+    if platform.startswith("windows-"):
+        archive = artifacts / f"{stage.name}.zip"
+        # Cargo normalizes some dependency file times to 1970, before ZIP's
+        # epoch. Clamp those timestamps without altering packaged license files.
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, strict_timestamps=False) as output:
+            for file in sorted(stage.rglob("*")):
+                if file.is_file():
+                    output.write(file, file.relative_to(stage.parent))
+        return archive
+    return shutil.make_archive(str(artifacts / stage.name), "gztar", stage.parent, stage.name)
 
 
 def windows_runtime(stage, qt, kde):
@@ -84,7 +99,13 @@ def linux_runtime(stage, qt, kde):
             shutil.copy2(library, stage / "lib" / library.name, follow_symlinks=False)
     copy_tree(qt / "qml", stage / "qml")
     copy_tree(kde / "qml", stage / "qml")
-    copy_tree(qt / "plugins", stage / "plugins")
+    for plugin_type in ("platforms", "imageformats", "iconengines", "styles", "tls",
+                        "networkinformation", "platforminputcontexts", "xcbglintegrations",
+                        "egldeviceintegrations", "generic", "wayland-decoration-client",
+                        "wayland-graphics-integration-client", "wayland-shell-integration"):
+        source = qt / "plugins" / plugin_type
+        if source.is_dir():
+            copy_tree(source, stage / "plugins" / plugin_type)
     # glibc and graphics drivers remain provided by the Linux distribution.
     system_libraries = re.compile(r"^(ld-linux|lib(c|m|mvec|dl|pthread|rt|resolv|util|anl)\.so|libnss_|lib(GL|EGL|GLX|GLdispatch|OpenGL)\.)")
     queue = [stage / "bin/orbit", *stage.rglob("*.so*")]
@@ -105,14 +126,16 @@ def linux_runtime(stage, qt, kde):
                 shutil.copy2(path, destination)
                 queue.append(destination)
     (stage / "bin/qt.conf").write_text("[Paths]\nPrefix=..\nPlugins=plugins\nQmlImports=qml\n", encoding="utf-8")
+    # Relative ELF paths keep the package relocatable without exporting library
+    # variables that could interfere with game clients launched by Orbit.
+    for binary in (stage / "bin/orbit", *stage.rglob("*.so*")):
+        if binary.is_file() and not binary.is_symlink():
+            library_path = os.path.relpath(stage / "lib", binary.parent)
+            run("patchelf", "--set-rpath", f"$ORIGIN/{library_path}", binary)
     launcher = stage / "orbit"
     launcher.write_text(
         '#!/bin/sh\nset -eu\n'
         'orbit_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\n'
-        'export LD_LIBRARY_PATH="$orbit_dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\n'
-        'export QT_PLUGIN_PATH="$orbit_dir/plugins"\n'
-        'export QML_IMPORT_PATH="$orbit_dir/qml"\n'
-        'export QML2_IMPORT_PATH="$orbit_dir/qml"\n'
         'exec "$orbit_dir/bin/orbit" "$@"\n', encoding="utf-8")
     launcher.chmod(0o755)
 
@@ -164,8 +187,7 @@ def main():
     }, indent=2) + "\n", encoding="utf-8")
     run(sys.executable, WORKSPACE / "scripts/ci-licenses.py", stage)
     artifacts = WORKSPACE / "target/artifacts"
-    artifacts.mkdir(parents=True, exist_ok=True)
-    archive = shutil.make_archive(str(artifacts / name), "zip" if platform.startswith("windows-") else "gztar", stage.parent, name)
+    archive = archive_stage(stage, artifacts, platform)
     print(f"Created runtime bundle: {archive}")
 
 
