@@ -415,6 +415,7 @@ impl qobject::Backend {
                     launch_notice: String::new(),
                     command,
                     directory,
+                    environment: Default::default(),
                     launch_uri: None,
                     favorite: false,
                     last_played: 0,
@@ -508,7 +509,7 @@ impl qobject::Backend {
 }
 fn demo_library() -> Library {
     let games = [
-        ("The Outer Worlds", "steam", "A new frontier awaits"),
+        ("The Outer Worlds", "legendary", "A new frontier awaits"),
         (
             "Hollow Knight",
             "steam",
@@ -519,7 +520,7 @@ fn demo_library() -> Library {
         ("Hades", "lutris", "Defy the god of the dead"),
         ("Stardew Valley", "steam", "Make yourself at home"),
         ("No Man’s Sky", "steam", "An infinite universe to explore"),
-        ("Disco Elysium", "lutris", "Every choice leaves a mark"),
+        ("Disco Elysium", "heroic", "Every choice leaves a mark"),
         (
             "Fabulously Optimized",
             "modrinth",
@@ -551,6 +552,7 @@ fn demo_library() -> Library {
         },
         launch_notice: String::new(),
         command: vec![],
+        environment: Default::default(),
         launch_uri: None,
         directory: None,
         favorite: false,
@@ -560,10 +562,12 @@ fn demo_library() -> Library {
     Library {
         games,
         providers: [
-            ("steam", "Steam", 5),
-            ("lutris", "Lutris", 2),
+            ("steam", "Steam", 4),
+            ("lutris", "Lutris", 1),
             ("prism", "Prism Launcher", 1),
             ("modrinth", "Modrinth Launcher", 1),
+            ("heroic", "Heroic Games Launcher", 1),
+            ("legendary", "Legendary", 1),
         ]
         .map(|(id, name, count)| ProviderStatus {
             id: id.into(),

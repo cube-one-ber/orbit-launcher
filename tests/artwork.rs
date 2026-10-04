@@ -187,6 +187,31 @@ fn minecraft_defaults_to_its_installed_drop_before_modpack_artwork() {
 }
 
 #[test]
+fn heroic_gog_games_use_their_product_id_for_official_artwork() {
+    let temp = tempfile::tempdir().unwrap();
+    let url = "https://images.gog.example/background.jpg";
+    let mut fetcher = FakeFetcher::default();
+    fetcher.responses.insert(
+        "https://api.gog.com/products/9876001".into(),
+        json!({"images":{"background":url}})
+            .to_string()
+            .into_bytes(),
+    );
+    fetcher.responses.insert(url.into(), png());
+    let requests = fetcher.requests.clone();
+    let mut game = game();
+    game.provider = "heroic".into();
+    game.id = "heroic:fixture:gog:9876001".into();
+    game.art.gog_product = Some("9876001".into());
+    service(&temp, true, fetcher).resolve(&mut game, None);
+    assert_eq!(game.art.source, "GOG artwork");
+    assert_eq!(
+        *requests.lock().unwrap(),
+        ["https://api.gog.com/products/9876001", url]
+    );
+}
+
+#[test]
 fn snapshot_artwork_uses_its_exact_official_metadata() {
     let temp = tempfile::tempdir().unwrap();
     let mut fetcher = FakeFetcher::default();

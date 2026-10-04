@@ -12,7 +12,7 @@ Open a game's details and choose **Choose cover** to select a local image. **Res
 4. The application or instance icon, shown at its own proportions rather than stretched like a cover.
 5. A neutral placeholder with initials. An image that cannot be displayed falls back to a local icon or the placeholder.
 
-Steam discovery checks custom user grid images and both flat and nested library caches, preferring landscape images for cards. Lutris checks covers and banners separately from icons. GOG and Epic check installation folders. Identically named installed games can share a cover across sources; Minecraft instances must also have the same version.
+Steam discovery checks custom user grid images and both flat and nested library caches, preferring landscape images for cards. Lutris checks covers and banners separately from icons. GOG and Epic check installation folders. Heroic uses cached Epic/GOG/Amazon image metadata; Legendary uses its local Epic key images, with landscape artwork preferred. Heroic GOG entries also retain their product ID for public GOG artwork lookup. Identically named installed games can share a cover across sources; Minecraft instances must also have the same version.
 
 ## Minecraft drops and updates
 
@@ -60,7 +60,8 @@ Older JSON provider records remain valid. Extensions can optionally supply:
     "icon": "file:///home/example/Pictures/icon.png",
     "remote": ["https://example.org/game/banner.webp"],
     "minecraft_version": "1.21.5",
-    "modrinth_project": "1KVo5zza"
+    "modrinth_project": "1KVo5zza",
+    "gog_product": null
   }
 }
 ```

@@ -1,6 +1,9 @@
 //! Providers discover local records; they never modify launcher-owned files.
 mod epic;
 mod gog;
+mod heroic;
+mod installed;
+mod legendary;
 mod lutris;
 mod modrinth;
 mod prism;
@@ -13,7 +16,10 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
-pub use {epic::Epic, gog::Gog, lutris::Lutris, modrinth::Modrinth, prism::Prism, steam::Steam};
+pub use {
+    epic::Epic, gog::Gog, heroic::Heroic, legendary::Legendary, lutris::Lutris, modrinth::Modrinth,
+    prism::Prism, steam::Steam,
+};
 
 pub trait Provider: Send {
     fn id(&self) -> &str;
@@ -94,12 +100,22 @@ pub fn discover(settings: &Settings, config_dir: &Path) -> Library {
         Box::new(Lutris),
         Box::new(Prism),
         Box::new(Modrinth),
+        Box::new(Heroic),
+        Box::new(Legendary),
         Box::new(Epic),
         Box::new(Gog),
     ];
     let mut library = Library::default();
     let mut provider_ids: HashSet<String> = [
-        "steam", "lutris", "prism", "modrinth", "epic", "gog", "custom",
+        "steam",
+        "lutris",
+        "prism",
+        "modrinth",
+        "heroic",
+        "legendary",
+        "epic",
+        "gog",
+        "custom",
     ]
     .map(String::from)
     .into();
@@ -196,8 +212,16 @@ pub fn launch(game: &Game) -> Result<(), String> {
         return Err("The executable cannot be empty".into());
     }
     let mut command = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // Console launchers should not flash a terminal over the game. Windows
+        // ignores this flag for GUI executables, which retain their normal UI.
+        command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
+    }
     command
         .args(args)
+        .envs(&game.environment)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());

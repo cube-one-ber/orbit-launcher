@@ -26,6 +26,7 @@ pub struct Artwork {
     pub remote: Vec<String>,
     pub minecraft_version: Option<String>,
     pub modrinth_project: Option<String>,
+    pub gog_product: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -41,6 +42,8 @@ pub struct Game {
     pub launch_notice: String,
     #[serde(default)]
     pub command: Vec<String>,
+    #[serde(default)]
+    pub environment: BTreeMap<String, String>,
     #[serde(default)]
     pub launch_uri: Option<String>,
     #[serde(default)]
@@ -96,10 +99,19 @@ impl Default for Settings {
             theme: Theme::Dark,
             density: "comfortable".into(),
             view: "grid".into(),
-            sources: ["steam", "lutris", "prism", "modrinth", "epic", "gog"]
-                .into_iter()
-                .map(|id| (id.into(), SourceConfig::default()))
-                .collect(),
+            sources: [
+                "steam",
+                "lutris",
+                "prism",
+                "modrinth",
+                "heroic",
+                "legendary",
+                "epic",
+                "gog",
+            ]
+            .into_iter()
+            .map(|id| (id.into(), SourceConfig::default()))
+            .collect(),
             favorites: vec![],
             played: BTreeMap::new(),
             custom_games: vec![],

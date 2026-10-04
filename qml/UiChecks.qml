@@ -25,6 +25,7 @@ Item {
                     checks.verify(backend.demo, "UI checks require --demo");
                     checks.verify(app.library.games.length === 9, "Demo library loaded");
                     checks.verify(app.library.providers.some(p=>p.id === "modrinth"), "Modrinth is available in navigation");
+                    checks.verify(app.library.providers.some(p=>p.id === "heroic") && app.library.providers.some(p=>p.id === "legendary"), "Heroic and Legendary are available in navigation");
                     app.query = "hollow";
                     break;
                 case 1:
@@ -98,7 +99,24 @@ Item {
                     checks.verify(artworkProbe.hasImage && !artworkProbe.iconMode && !artworkProbe.fallbackUsed, "New covers replace an icon fallback");
                     checks.verify(app.prefs.online_artwork === false, "Offline artwork preference updates");
                     checks.verify(app.prefs.minecraft_artwork === "modpacks", "Minecraft artwork preference updates");
-                    console.log("ORBIT_UI_TEST_PASS: dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
+                    app.changeSection("library");
+                    app.sourceFilter = "heroic";
+                    break;
+                case 14:
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "Disco Elysium", "Heroic source filter works");
+                    app.openSource("heroic");
+                    break;
+                case 15:
+                    app.closeSource();
+                    app.sourceFilter = "legendary";
+                    break;
+                case 16:
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "The Outer Worlds", "Legendary source filter works");
+                    app.openSource("legendary");
+                    break;
+                case 17:
+                    app.closeSource();
+                    console.log("ORBIT_UI_TEST_PASS: dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, Heroic, Legendary, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
                     checks.running = false;
                     Qt.quit();
                     break;

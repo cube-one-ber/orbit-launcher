@@ -269,6 +269,7 @@ impl Provider for Steam {
                         },
                         launch_notice: String::new(),
                         command,
+                        environment: Default::default(),
                         launch_uri: None,
                         directory: None,
                         favorite: false,

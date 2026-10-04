@@ -52,7 +52,7 @@ Controls.AbstractButton {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 15 }
             spacing: 7
             Controls.Label { width: parent.width; text: card.game.title; elide: Text.ElideRight; color: card.theme.text; font { pixelSize: 14; weight: Font.DemiBold } }
-            Controls.Label { width: parent.width; text: ({steam:"Steam",prism:"Prism Launcher",modrinth:"Modrinth Launcher",lutris:"Lutris",epic:"Epic Games",gog:"GOG Galaxy",custom:"Custom"})[card.game.provider] || card.game.provider; color: card.theme.muted; font.pixelSize: 12; elide: Text.ElideRight }
+            Controls.Label { width: parent.width; text: ({steam:"Steam",prism:"Prism Launcher",modrinth:"Modrinth Launcher",heroic:"Heroic Games Launcher",legendary:"Legendary",lutris:"Lutris",epic:"Epic Games",gog:"GOG Galaxy",custom:"Custom"})[card.game.provider] || card.game.provider; color: card.theme.muted; font.pixelSize: 12; elide: Text.ElideRight }
         }
     }
 }

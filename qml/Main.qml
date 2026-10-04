@@ -40,7 +40,7 @@ Kirigami.ApplicationWindow {
     function changeSection(value) { section = value; sourceFilter = "all"; }
     function providerName(id) {
         const provider = library.providers.find(p=>p.id === id);
-        return provider ? provider.name : ({custom:"Custom games",epic:"Epic Games",gog:"GOG Galaxy",modrinth:"Modrinth Launcher"})[id] || id;
+        return provider ? provider.name : ({custom:"Custom games",epic:"Epic Games",gog:"GOG Galaxy",modrinth:"Modrinth Launcher",heroic:"Heroic Games Launcher",legendary:"Legendary"})[id] || id;
     }
     function openGame(game) { selectedGame = game; details.open(); }
     function closeGame() { details.close(); }
@@ -160,10 +160,10 @@ Kirigami.ApplicationWindow {
         contentItem: RowLayout {
             spacing: 12
             AppIcon { name: nav.symbol; ink: nav.selected ? colors.accent : colors.muted; Layout.preferredWidth: 18; Layout.preferredHeight: 18; Layout.leftMargin: 12 }
-            Controls.Label { visible: !root.compactNavigation; text: nav.text; color: nav.selected ? colors.accent : colors.muted; font { pixelSize: 13; weight: nav.selected ? Font.DemiBold : Font.Normal } Layout.fillWidth: true }
+            Controls.Label { id: navLabel; visible: !root.compactNavigation; text: nav.text; elide: Text.ElideRight; color: nav.selected ? colors.accent : colors.muted; font { pixelSize: 13; weight: nav.selected ? Font.DemiBold : Font.Normal } Layout.fillWidth: true; Layout.minimumWidth: 0 }
             Controls.Label { visible: !root.compactNavigation && nav.badge !== ""; text: nav.badge; color: colors.faint; font.pixelSize: 11; Layout.rightMargin: 12 }
         }
-        Controls.ToolTip.visible: hovered && root.compactNavigation
+        Controls.ToolTip.visible: hovered && (root.compactNavigation || navLabel.truncated)
         Controls.ToolTip.text: text
     }
     component Panel: Rectangle { color: colors.surface; radius: 10; border.color: colors.border }
@@ -218,7 +218,7 @@ Kirigami.ApplicationWindow {
                     Item { Layout.fillHeight: true }
                     NavItem { text: "Sources"; symbol: "folder"; selected: root.section === "sources"; onClicked: root.changeSection("sources") }
                     NavItem { text: "Appearance"; symbol: "settings"; selected: root.section === "appearance"; onClicked: root.changeSection("appearance") }
-                    Controls.Label { visible: !root.compactNavigation; text: backend.demo ? "Preview mode" : "Orbit 0.3"; color: colors.faint; font.pixelSize: 11; Layout.leftMargin: 12; Layout.topMargin: 14; Layout.bottomMargin: 5 }
+                    Controls.Label { visible: !root.compactNavigation; text: backend.demo ? "Preview mode" : "Orbit 0.4"; color: colors.faint; font.pixelSize: 11; Layout.leftMargin: 12; Layout.topMargin: 14; Layout.bottomMargin: 5 }
                 }
             }
             ColumnLayout {
@@ -492,7 +492,7 @@ Kirigami.ApplicationWindow {
         title: "Configure " + root.providerName(sourceId)
         contentItem: ColumnLayout {
             spacing: 12
-            Controls.Label { text: ({steam:"Add folders containing steamapps.",lutris:"Add Lutris data folders or pga.db files.",prism:"Add Prism data folders containing prismlauncher.cfg. Play skips Prism's main window.",modrinth:"Add Modrinth data folders containing app.db, or select an app.db path. Custom app directories are read from the database.",epic:"Add Epic Games Launcher manifest folders (.item files).",gog:"Add GOG game folders or libraries containing goggame-*.info files."})[sourceDialog.sourceId] || "This provider reads its JSON manifest."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.muted; font.pixelSize: 12 }
+            Controls.Label { text: ({steam:"Add folders containing steamapps.",lutris:"Add Lutris data folders or pga.db files.",prism:"Add Prism data folders containing prismlauncher.cfg. Play skips Prism's main window.",modrinth:"Add Modrinth data folders containing app.db, or select an app.db path. Custom app directories are read from the database.",heroic:"Add Heroic configuration folders containing legendaryConfig, gog_store or nile_config. Select a command override for AppImages or portable installations.",legendary:"Add Legendary configuration folders or installed.json files. Orbit preserves the selected configuration when launching.",epic:"Add Epic Games Launcher manifest folders (.item files).",gog:"Add GOG game folders or libraries containing goggame-*.info files."})[sourceDialog.sourceId] || "This provider reads its JSON manifest."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: colors.muted; font.pixelSize: 12 }
             Controls.Label { text: "Additional paths"; color: colors.text; font.pixelSize: 12 }
             Controls.TextArea {
                 id: sourcePaths; Layout.fillWidth: true; implicitHeight: 100

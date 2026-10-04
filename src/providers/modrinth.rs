@@ -176,7 +176,7 @@ fn read_database(
             artwork: crate::artwork::local_cover(&instance),
             art: Artwork { icon, minecraft_version: version, modrinth_project: project, ..Default::default() },
             launch_notice: if current { String::new() } else { "Opened Modrinth Launcher. Select this profile there to play; this older launcher has no direct instance launch support.".into() },
-            command, launch_uri, directory: None, favorite: false,
+            command, environment: Default::default(), launch_uri, directory: None, favorite: false,
             last_played: played.unwrap_or(0).max(0) as u64,
         });
     }

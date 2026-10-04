@@ -55,7 +55,19 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 - [ ] Validate real Epic and Galaxy installs and launches on Windows in non-default locations.
   - Verify Epic entitlement/login prompts and already-running launcher behavior.
   - Verify GOG offline installs, Galaxy-managed libraries and multiple metadata versions.
-- [ ] Add Heroic/Legendary with Linux/Windows discovery and metadata fixtures.
+- [x] Add Heroic/Legendary with Linux/Windows discovery and metadata fixtures.
+  - Read Heroic Epic, GOG and Amazon installations, with optional cached titles/artwork.
+  - Keep standalone Legendary configurations separate and preserve each folder during dispatch.
+  - Request Heroic's hidden-window launch modes and launch Legendary through its CLI.
+  - Suppress extra console windows for Windows command-line launchers.
+- [ ] Validate real Heroic/Legendary launches on Linux and Windows.
+  - Check Heroic cold/already-running launches across supported versions and all three stores.
+  - Check login/error prompts, Wine/Proton settings, cloud saves and AppImage/portable overrides.
+  - Check multiple Legendary configurations, paths with spaces/Unicode, and no console flashes.
+- [ ] Add Battle.net, EA app and Ubisoft Connect discovery on Windows with installed-game fixtures.
+  - Use documented direct-game launch mechanisms and the quietest supported launcher mode.
+  - Keep authentication/error prompts available; document unavoidable launcher windows.
+- [ ] Add itch.io installed games and additional Minecraft launchers with local metadata fixtures.
 - [ ] Add an opt-in application source for Windows Start menu shortcuts and Linux desktop files.
   - Resolve platform shortcut/desktop-entry semantics without arbitrary shell evaluation.
   - Distinguish applications from launchers and avoid duplicate entries.
@@ -117,10 +129,11 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 
 ## Verification recorded for this pass
 
-- Linux 0.3: 49 Rust unit/integration tests pass; core and full-GUI Clippy pass with `-D warnings`.
+- Linux 0.4: 60 Rust unit/integration tests pass; core and full-GUI Clippy pass with `-D warnings`.
+- Heroic/Legendary: fixtures cover three Heroic stores, incomplete/DLC installs, URI encoding, quiet launch flags, Flatpak/portable commands, read-only files, configuration identity and actual child-process environment dispatch. Native Windows CI includes console suppression coverage.
 - Kirigami: offscreen checks cover dark/light contrast, search, favorites, filters, views, dialogs, custom games, validation, compact navigation, image/icon fallback, artwork preferences and demo isolation.
 - Artwork: real Steam, GOG, Modrinth galleries and several official Minecraft drop downloads decode and cache successfully. An isolated non-demo library checks background discovery/enrichment without launching a game.
-- Windows: the previous release's native MSVC compilation, Rust tests, core Clippy and release offscreen UI checks passed in GitHub Actions. The new Modrinth/artwork code has Linux fixture coverage; native launcher validation, scaling and clean-machine deployment remain open.
+- Windows: the 0.3 release's native MSVC compilation, Rust tests, core Clippy and release offscreen UI checks passed in GitHub Actions. New Heroic/Legendary code has Linux fixture coverage; native game launches, quiet-launch behavior, scaling and clean-machine deployment remain open.
 
 ## Acceptance criteria
 
@@ -131,3 +144,4 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 5. This checklist distinguishes implemented work from release blockers.
 6. Modrinth uses supported launch behavior for its database generation, and Prism skips the main window while retaining launcher-managed authentication.
 7. Minecraft artwork matches the installed version; online enrichment never blocks initial library display, and cached/local artwork remains usable offline.
+8. Every added launcher uses its quietest supported game-launch mode; required prompts remain available, and version/platform limits are documented.

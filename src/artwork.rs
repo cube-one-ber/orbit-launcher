@@ -260,11 +260,16 @@ impl<F: Fetcher> ArtworkService<F> {
                 return;
             }
         }
-        if game.provider == "gog"
-            && let Some(id) = game
-                .id
-                .strip_prefix("gog:")
-                .filter(|id| id.chars().all(|c| c.is_ascii_digit()))
+        if let Some(id) = game
+            .art
+            .gog_product
+            .clone()
+            .or_else(|| {
+                (game.provider == "gog")
+                    .then(|| game.id.strip_prefix("gog:").map(str::to_owned))
+                    .flatten()
+            })
+            .filter(|id| !id.is_empty() && id.chars().all(|c| c.is_ascii_digit()))
             && let Some(metadata) = self.json(&format!("https://api.gog.com/products/{id}"))
         {
             for field in ["background", "image"] {
@@ -422,6 +427,8 @@ pub fn provider_name(id: &str) -> &str {
         "lutris" => "Lutris",
         "epic" => "Epic Games",
         "gog" => "GOG Galaxy",
+        "heroic" => "Heroic Games Launcher",
+        "legendary" => "Legendary",
         _ => "Application",
     }
 }

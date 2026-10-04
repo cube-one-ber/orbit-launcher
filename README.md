@@ -4,11 +4,12 @@ A local-first game and application launcher written in **Rust**, with a native *
 
 ## Features
 
-- **One library:** Steam, Lutris, Prism Launcher, Modrinth Launcher, Epic Games and GOG Galaxy, with platform availability shown below.
+- **One library:** Steam, Lutris, Prism Launcher, Modrinth Launcher, Heroic, Legendary, Epic Games and GOG Galaxy, with platform availability shown below.
 - **Clean dark and light themes:** searchable grid/list views, compact cards, favorites, recent launches and keyboard shortcuts.
 - **Better artwork:** launcher covers, public store artwork, Modrinth galleries, offline caching and per-game custom covers.
 - **Minecraft update art:** covers match each instance's installed game drop or update, with an option to prefer modpack galleries.
 - **Direct Prism launches:** Play starts the selected instance while skipping Prism's main window; Prism manages accounts, Java and mod loaders.
+- **Quiet launches:** Heroic requests `--no-gui` and a hidden-window launch link; Legendary launches through its CLI, with console windows suppressed on Windows.
 - **Extendable:** add custom applications or implement JSON/Rust providers without changing the interface.
 
 ![Orbit in dark mode](docs/dark.png)
@@ -23,6 +24,8 @@ A local-first game and application launcher written in **Rust**, with a native *
 | Lutris | Yes | Unavailable | Installed games from the read-only database; native/Flatpak launching |
 | Prism Launcher | Yes | Implemented | Instances, custom directories, Minecraft update covers; direct instance launch skips the main window |
 | Modrinth Launcher | Yes | Implemented | Read-only legacy/current databases, custom data folders, installed instance versions; current instance launch links |
+| Heroic Games Launcher | Yes | Implemented | Installed Epic, GOG and Amazon games; native/Flatpak launching, cached store artwork and quiet launch requests |
+| Legendary | Yes | Implemented | Standalone Epic installations, local metadata, CLI launching with the matching configuration folder |
 | Epic Games | Unavailable | Implemented | Installed `.item` manifests; Epic protocol launching, excluding incomplete installs, DLC and engine plugins |
 | GOG Galaxy | Unavailable | Implemented | Registry game folders and `goggame-*.info`; Galaxy launching with game ID and path |
 | Custom games/apps and JSON providers | Yes | Implemented | Executable, separate arguments, optional working folder and local artwork |
@@ -73,6 +76,8 @@ Under **Sources**, enable integrations, add absolute paths, or set a launcher co
 | Lutris | Its data directory or `pga.db` |
 | Prism | Its data directory containing `prismlauncher.cfg` and normally `instances` |
 | Modrinth | Its application data directory containing `app.db`, or `app.db` itself; custom content folders are read from its settings |
+| Heroic | Its configuration folder containing `legendaryConfig`, `gog_store` or `nile_config` |
+| Legendary | Its configuration folder containing `installed.json`, or `installed.json` itself |
 | Epic | A manifest directory containing `.item` files |
 | GOG | A game folder or library with `goggame-*.info` in immediate game folders |
 
@@ -81,6 +86,10 @@ Commands are JSON arrays, such as `["C:/Apps/PrismLauncher/prismlauncher.exe"]`,
 Prism uses `--dir <data-folder> --launch <instance-id>` to start the instance while skipping its main window. Prism still handles authentication, Java and mod loaders, and may show account or error dialogs. Existing Prism settings control console windows and reopening after the game exits.
 
 Modrinth discovery supports both legacy `profiles` and current `instances` databases, follows custom content folders, and skips unfinished or missing installations. Current builds launch via `modrinth://launch/instance/<id>`. Older builds lack direct instance launch support, so their entries show **Open launcher** and ask you to select the profile there. Configure a command override if your Linux desktop has no Modrinth URI handler.
+
+Heroic reads installed Epic, GOG and Amazon records rather than importing every owned game. Play requests `--no-gui` and `gui=false` so current Heroic builds keep the main window hidden, including when already running. Heroic still manages Wine/Proton, accounts and launch settings. Older builds or account/error prompts may show UI.
+
+Legendary discovers standalone installations and starts `legendary launch -- <app-name>` with the discovered folder in `LEGENDARY_CONFIG_PATH`. Install Legendary and sign in through its CLI first. Heroic-managed Epic games belong to the Heroic source; standalone Legendary discovery does not automatically scan Heroic folders. See the [Heroic and Legendary guide](docs/launchers.md) for paths and command overrides.
 
 Settings live in `$XDG_CONFIG_HOME/orbit/settings.json` (normally `~/.config/orbit/settings.json`) on Linux and `%APPDATA%\Orbit\settings.json` on Windows. `ORBIT_CONFIG_DIR` overrides the directory. Writes atomically replace the file. Legacy accent-based settings retain favorites, source paths and history, and default to dark mode. Malformed settings are reported and protected from automatic overwrite; correct the file or move it aside, then restart. `--light` selects and saves light mode unless used with `--demo`.
 
@@ -109,7 +118,7 @@ The first command downloads and validates public covers without launching games.
 
 ### JSON providers
 
-Create a `providers` folder inside Orbit's configuration directory, add a manifest such as [`examples/local-games.json`](examples/local-games.json), and refresh. Sources can open this directory. Each provider appears in navigation and Sources and can be disabled. IDs must be unique ASCII letters, digits or hyphens; `steam`, `lutris`, `prism`, `modrinth`, `epic`, `gog` and `custom` are reserved. Game IDs are namespaced automatically.
+Create a `providers` folder inside Orbit's configuration directory, add a manifest such as [`examples/local-games.json`](examples/local-games.json), and refresh. Sources can open this directory. Each provider appears in navigation and Sources and can be disabled. IDs must be unique ASCII letters, digits or hyphens; `steam`, `lutris`, `prism`, `modrinth`, `heroic`, `legendary`, `epic`, `gog` and `custom` are reserved. Game IDs are namespaced automatically.
 
 ```json
 {
@@ -127,7 +136,7 @@ Create a `providers` folder inside Orbit's configuration directory, add a manife
 }
 ```
 
-`artwork` accepts a local `file:///...` URL or HTTPS image URL downloaded through Orbit’s cache. Optional `art` hints describe icons, remote covers, Minecraft versions and Modrinth projects; see the [artwork guide](docs/artwork.md). `directory` sets the working folder. Arguments pass directly without shell evaluation. Reading a manifest does not execute it; pressing Play does. Optional `launch_uri` takes precedence over `command` and accepts Epic game-launch links on Windows or Modrinth instance-launch links on Linux/Windows. Install and authentication links are rejected. Most extensions should use `command`.
+`artwork` accepts a local `file:///...` URL or HTTPS image URL downloaded through Orbit’s cache. Optional `art` hints describe icons, remote covers, Minecraft versions and Modrinth projects; see the [artwork guide](docs/artwork.md). `directory` sets the working folder. Optional `environment` supplies environment variables to the launched command without changing Orbit’s own environment. Arguments pass directly without shell evaluation. Reading a manifest does not execute it; pressing Play does. Optional `launch_uri` takes precedence over `command` and accepts Epic game-launch links on Windows or Modrinth instance-launch links on Linux/Windows. Install and authentication links are rejected. Most extensions should use `command`.
 
 ### Rust providers
 
@@ -158,9 +167,9 @@ scripts/check-ui.sh
 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software target/debug/orbit --demo --smoke-test
 ```
 
-Rust tests cover Steam libraries and escaped Windows paths, read-only Lutris queries, custom Prism directories, Epic/GOG fixtures, both Modrinth schemas, direct launch arguments, artwork selection/cache/offline behavior, Minecraft version matching, extensions, protocols, metadata migration and repeated settings replacement. Windows CI also exercises a temporary test-owned registry key. UI checks cover both palettes, search, favorites, filters, views, dialogs, custom games, validation, compact navigation, image/icon error fallbacks, artwork preferences and demo isolation.
+Rust tests cover Steam libraries and escaped Windows paths, read-only Lutris queries, custom Prism directories, Epic/GOG fixtures, both Modrinth schemas, Heroic’s three stores, Legendary configuration/metadata, quiet launch arguments, artwork selection/cache/offline behavior, Minecraft version matching, extensions, protocols, metadata migration and repeated settings replacement. Windows CI also exercises a temporary test-owned registry key. UI checks cover both palettes, search, favorites, filters, views, dialogs, custom games, validation, compact navigation, image/icon error fallbacks, artwork preferences and demo isolation.
 
-The 0.3 update passed **49 Rust tests**, core/full-GUI Clippy and offscreen UI checks locally on Linux. Public artwork downloads and an offline GUI restart were also verified. Native Windows game launches and clean-machine deployment remain on the [release checklist](TODO.md).
+The 0.4 update passed **60 Rust tests**, core/full-GUI Clippy and offscreen UI checks locally on Linux. Public artwork downloads and an offline GUI restart were also verified. Windows CI includes a console-window suppression check. Native Windows game launches and clean-machine deployment remain on the [release checklist](TODO.md).
 
 The smoke test loads the Kirigami window and exits automatically. Add `--screenshot /absolute/path/preview.png` to capture the rendered page, or `--light` for its light theme. On Windows, run `scripts/check-ui.ps1 -Executable <path-to-orbit.exe>` after building. See [TODO.md](TODO.md) for native Windows, accessibility and packaging work.
 

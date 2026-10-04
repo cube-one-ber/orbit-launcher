@@ -131,6 +131,7 @@ impl Provider for Epic {
                             launch_notice: String::new(),
                             command,
                             launch_uri,
+                            environment: Default::default(),
                             directory: None,
                             favorite: false,
                             last_played: 0,

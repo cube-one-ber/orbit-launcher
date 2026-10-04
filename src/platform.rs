@@ -15,6 +15,7 @@ pub struct Platform {
     pub home: PathBuf,
     pub roaming: PathBuf,
     pub local: PathBuf,
+    pub config_home: PathBuf,
     pub program_data: PathBuf,
     pub program_files: Vec<PathBuf>,
     pub steam_registry: Vec<PathBuf>,
@@ -41,6 +42,7 @@ impl Platform {
             os,
             roaming: get("APPDATA").unwrap_or_else(|| home.join("AppData/Roaming")),
             local: get("LOCALAPPDATA").unwrap_or_else(|| home.join("AppData/Local")),
+            config_home: get("XDG_CONFIG_HOME").unwrap_or_else(|| home.join(".config")),
             program_data: get("PROGRAMDATA").unwrap_or_else(|| PathBuf::from("C:/ProgramData")),
             program_files: vec![
                 get("ProgramFiles(x86)").unwrap_or_else(|| PathBuf::from("C:/Program Files (x86)")),
@@ -122,6 +124,54 @@ impl Platform {
                 .chain(find_on_path("Modrinth App.exe")),
             "Modrinth App.exe",
         )
+    }
+    pub fn heroic_roots(&self) -> Vec<PathBuf> {
+        if self.os == Os::Windows {
+            vec![self.roaming.join("heroic")]
+        } else {
+            vec![
+                self.config_home.join("heroic"),
+                self.home
+                    .join(".var/app/com.heroicgameslauncher.hgl/config/heroic"),
+            ]
+        }
+    }
+    pub fn legendary_roots(&self) -> Vec<PathBuf> {
+        // Legendary uses ~/.config even on Windows; APPDATA is not its default.
+        let mut roots = vec![self.config_home.join("legendary")];
+        if let Some(path) = env::var_os("LEGENDARY_CONFIG_PATH") {
+            roots.insert(0, path.into());
+        }
+        roots
+    }
+    pub fn heroic_command(&self) -> String {
+        if self.os == Os::Linux {
+            return "heroic".into();
+        }
+        executable(
+            [
+                "Programs/heroic",
+                "Programs/Heroic",
+                "Programs/Heroic Games Launcher",
+            ]
+            .into_iter()
+            .map(|folder| self.local.join(folder).join("Heroic.exe"))
+            .chain(
+                self.program_files
+                    .iter()
+                    .map(|folder| folder.join("Heroic/Heroic.exe")),
+            )
+            .chain(find_on_path("Heroic.exe")),
+            "Heroic.exe",
+        )
+    }
+    pub fn legendary_command(&self) -> String {
+        let binary = if self.os == Os::Windows {
+            "legendary.exe"
+        } else {
+            "legendary"
+        };
+        executable(find_on_path(binary), binary)
     }
     pub fn prism_executables(&self) -> Vec<PathBuf> {
         std::iter::once(self.local.join("Programs/PrismLauncher/prismlauncher.exe"))
