@@ -33,7 +33,7 @@ def main():
             executable = package / "orbit.exe"
             for file in ("Qt6Core.dll", "Qt6Gui.dll", "Qt6Qml.dll", "Qt6Quick.dll",
                          "msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll",
-                         "platforms/qwindows.dll", "imageformats/qsvg.dll",
+                         "platforms/qwindows.dll", "platforms/qoffscreen.dll", "imageformats/qsvg.dll",
                          "qml/org/kde/kirigami/qmldir"):
                 if not (package / file).is_file():
                     raise RuntimeError(f"Windows bundle is missing {file}")
@@ -45,6 +45,10 @@ def main():
         environment = {key: value for key, value in os.environ.items()
                        if not key.startswith(("QT_", "QML", "DYLD_", "LD_LIBRARY_PATH", "QMAKE"))}
         if os.name == "nt":
+            import ctypes
+            # Child GUI failures must return an error rather than wait forever
+            # in Windows loader/crash dialogs on an unattended runner.
+            ctypes.windll.kernel32.SetErrorMode(0x0001 | 0x0002 | 0x8000)
             environment["PATH"] = f"{package};{os.environ['SystemRoot']}/System32;{os.environ['SystemRoot']}"
         else:
             environment["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
@@ -59,8 +63,12 @@ def main():
                 test_environment["QT_QPA_PLATFORM"] = "offscreen"
             elif platform.startswith("linux-"):
                 command = ["/usr/bin/xvfb-run", "-a", *command]
-            result = subprocess.run(command, cwd=directory, env=test_environment,
-                                    capture_output=True, text=True, timeout=45)
+            try:
+                result = subprocess.run(command, cwd=directory, env=test_environment,
+                                        capture_output=True, text=True, timeout=45)
+            except subprocess.TimeoutExpired as error:
+                print(error.stdout or b"", error.stderr or b"", flush=True)
+                raise
             log = result.stdout + result.stderr
             print(log, flush=True)
             if result.returncode != 0 or re.search(r"ORBIT_UI_TEST_FAIL|ReferenceError|TypeError|Binding loop|Cannot assign|Unable to assign|Could not load", log):

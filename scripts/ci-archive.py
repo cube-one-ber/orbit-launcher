@@ -44,7 +44,7 @@ def windows_runtime(stage, qt, kde):
         "--qmldir", WORKSPACE / "qml", "--qmlimport", kde / "qml",
         "--dir", stage, stage / "orbit.exe")
     # Image/SVG plugins may be loaded at runtime rather than appear in PE imports.
-    for plugin_type in ("imageformats", "iconengines"):
+    for plugin_type in ("imageformats", "iconengines", "platforms"):
         destination = stage / plugin_type
         destination.mkdir(exist_ok=True)
         for plugin in (qt / "plugins" / plugin_type).glob("*.dll"):
@@ -106,8 +106,9 @@ def linux_runtime(stage, qt, kde):
         source = qt / "plugins" / plugin_type
         if source.is_dir():
             copy_tree(source, stage / "plugins" / plugin_type)
-    # glibc and graphics drivers remain provided by the Linux distribution.
-    system_libraries = re.compile(r"^(ld-linux|lib(c|m|mvec|dl|pthread|rt|resolv|util|anl)\.so|libnss_|lib(GL|EGL|GLX|GLdispatch|OpenGL)\.)")
+    # Bundle vendor-neutral GL dispatch libraries, leaving actual graphics
+    # drivers and glibc provided by the Linux distribution.
+    system_libraries = re.compile(r"^(ld-linux|lib(c|m|mvec|dl|pthread|rt|resolv|util|anl)\.so|libnss_)")
     queue = [stage / "bin/orbit", *stage.rglob("*.so*")]
     seen = set()
     environment = dict(os.environ, LD_LIBRARY_PATH=str(stage / "lib"))
@@ -150,9 +151,12 @@ def macos_runtime(stage, qt, kde, version):
                       "CFBundleShortVersionString": version, "CFBundleVersion": version,
                       "NSHighResolutionCapable": True, "LSMinimumSystemVersion": "15.0"}, output)
     copy_tree(kde / "qml", contents / "Resources/qml")
+    offscreen = contents / "PlugIns/platforms/libqoffscreen.dylib"
+    offscreen.parent.mkdir(parents=True)
+    shutil.copy2(qt / "plugins/platforms/libqoffscreen.dylib", offscreen)
     run(qt / "bin/macdeployqt", app, f"-qmldir={WORKSPACE / 'qml'}",
         f"-qmlimport={kde / 'qml'}", f"-libpath={kde / 'lib'}",
-        "-always-overwrite", "-verbose=2")
+        f"-executable={offscreen}", "-always-overwrite", "-verbose=2")
     # Ad-hoc signing supports ARM64 execution. Notarization needs Apple credentials.
     run("codesign", "--force", "--deep", "--sign", "-", app)
     run("codesign", "--verify", "--deep", "--strict", app)
