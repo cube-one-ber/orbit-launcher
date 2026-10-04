@@ -356,7 +356,11 @@ mod tests {
     fn fixture(name: &str, extra: &str) -> String {
         format!(
             "[Desktop Entry]\nType=Application\nName={name}\nCategories=Game;\nExec=\"{}\" --title \"arg with spaces\" %U\n{extra}\n[Desktop Action Test]\nName=Wrong title\nExec=wrong\n",
-            std::env::current_exe().unwrap().display()
+            // Desktop-value escaping is decoded before quoted Exec escaping.
+            std::env::current_exe()
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "\\\\\\\\")
         )
     }
     #[test]
@@ -497,13 +501,19 @@ mod tests {
             );
             std::thread::sleep(std::time::Duration::from_millis(10));
         };
+        let mut arguments = content.lines().collect::<Vec<_>>();
+        // Older `gio launch` constructs the app from a keyfile, losing its
+        // filename and omitting %k. Newer GIO constructs it from the filename.
+        // Both must preserve every other argument and the configured directory.
+        if arguments.len() == 5 {
+            assert_eq!(arguments.remove(3), file.to_str().unwrap());
+        }
         assert_eq!(
-            content.lines().collect::<Vec<_>>(),
+            arguments,
             [
                 temp.path().to_str().unwrap(),
                 "arg with spaces",
                 "GIO dispatch fixture",
-                file.to_str().unwrap(),
                 "%"
             ]
         );
