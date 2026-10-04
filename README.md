@@ -39,7 +39,7 @@ A local-first game and application launcher written in **Rust**, with a native *
 | Desktop games | Yes | Unavailable | Standalone games/emulators from native, Flatpak and Snap desktop entries; GIO preserves launch semantics |
 | Custom games/apps and JSON providers | Yes | Implemented | Executable, separate arguments, optional working folder and local artwork |
 
-GitHub Actions builds the full GUI on **Linux x86_64, Windows x86_64, and macOS Intel/Apple Silicon**, runs core and offscreen UI checks, and uploads release binaries on every push and pull request. See [automated builds and downloads](docs/ci.md) for artifacts and runtime requirements. Native macOS game discovery is not implemented yet; custom games and JSON providers can be configured. Real Windows game launches and standalone deployment still need validation; follow the [Windows guide](docs/windows.md) and [detailed TODO](TODO.md).
+Every successful commit push publishes a [prerelease with ready-to-run packages](https://github.com/cube-one-ber/orbit-launcher/releases) for **Linux x86_64, Windows x86_64, and macOS Intel/Apple Silicon**. Windows downloads include Qt, Kirigami, plugins and Microsoft C++ runtimes: extract the entire ZIP and run `orbit.exe`. CI tests all four extracted packages on separate fresh runners before publishing. See [automated builds and downloads](docs/ci.md) for checks and platform requirements. Native macOS game discovery is not implemented yet; custom games and JSON providers can be configured. Real game launches still need validation with installed clients; follow the [Windows guide](docs/windows.md) and [detailed TODO](TODO.md).
 
 ## Run on Linux
 

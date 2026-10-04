@@ -1,8 +1,8 @@
 # Windows development and validation
 
-Orbit includes native Windows discovery and process launching. GitHub Actions builds the full MSVC GUI, tests the Rust core, and runs offscreen interaction checks; see [automated builds](ci.md) for downloads and dependencies. Standalone deployment and real game launches still require native validation. See [TODO.md](../TODO.md) for the remaining release gates.
+Orbit includes native Windows discovery and process launching. To run a CI build, download `orbit-windows-x86_64.zip` from a [commit prerelease](https://github.com/cube-one-ber/orbit-launcher/releases), extract the entire ZIP, and open `orbit.exe`. Qt, Kirigami, native plugins and Microsoft C++ runtimes are included; no development tools are required. CI tests the extracted package on a separate fresh Windows runner before publishing. See [automated builds](ci.md) for details. Real game launches still require validation with installed clients; see [TODO.md](../TODO.md) for the remaining release gates.
 
-## Prerequisites
+## Build prerequisites
 
 - Windows 10/11 x64.
 - Rust stable with the `x86_64-pc-windows-msvc` target.
