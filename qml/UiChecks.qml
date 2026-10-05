@@ -23,7 +23,7 @@ Item {
                 switch (checks.step++) {
                 case 0:
                     checks.verify(backend.demo, "UI checks require --demo");
-                    checks.verify(app.library.games.length === 15, "Demo library loaded");
+                    checks.verify(app.library.games.length === 19, "Demo library loaded");
                     checks.verify(app.navigationFits, "Settings navigation fits with all providers");
                     checks.verify(app.library.providers.some(p=>p.id === "modrinth"), "Modrinth is available in navigation");
                     checks.verify(app.library.providers.some(p=>p.id === "heroic") && app.library.providers.some(p=>p.id === "legendary"), "Heroic and Legendary are available in navigation");
@@ -75,7 +75,7 @@ Item {
                     backend.configure(JSON.stringify({view:"grid"}));
                     break;
                 case 9:
-                    checks.verify(app.library.games.length === 15, "Custom game removal works");
+                    checks.verify(app.library.games.length === 19, "Custom game removal works");
                     checks.verify(app.compactNavigation, "Narrow window uses compact navigation");
                     checks.verify(app.navigationFits, "Settings navigation stays visible in a narrow window");
                     app.changeSection("appearance");
@@ -168,8 +168,32 @@ Item {
                     app.sourceFilter = "desktop";
                     checks.verify(app.visibleGames.length === 1, "Steam type filter does not leak to desktop games");
                     app.changeSection("library");
-                    checks.verify(app.visibleGames.length === 15, "Full library returns after Steam filters");
-                    console.log("ORBIT_UI_TEST_PASS: Desktop games, Steam installed/shortcut filtering, Battle.net, Ubisoft Connect, itch.io, dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, Heroic, Legendary, Roblox weekly ranking and setup isolation, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
+                    checks.verify(app.visibleGames.length === 19, "Full library returns after Steam filters");
+                    app.sourceFilter = "multimc";
+                    break;
+                case 28:
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "MultiMC Survival", "MultiMC filter works");
+                    app.openSource("multimc");
+                    break;
+                case 29:
+                    app.closeSource(); app.sourceFilter = "polymc";
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "PolyMC Creative", "PolyMC filter works");
+                    app.openSource("polymc");
+                    break;
+                case 30:
+                    app.closeSource(); app.sourceFilter = "atlauncher";
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "ATLauncher Adventure", "ATLauncher filter works");
+                    app.openSource("atlauncher");
+                    break;
+                case 31:
+                    app.closeSource(); app.sourceFilter = "nile";
+                    checks.verify(app.visibleGames.length === 1 && app.visibleGames[0].title === "Amazon Adventure", "Nile filter works");
+                    app.openSource("nile");
+                    break;
+                case 32:
+                    app.closeSource(); app.changeSection("library");
+                    checks.verify(app.navigationFits && app.visibleGames.length === 19, "Expanded library and navigation remain usable");
+                    console.log("ORBIT_UI_TEST_PASS: MultiMC, PolyMC, ATLauncher, Nile, Desktop games, Steam installed/shortcut filtering, Battle.net, Ubisoft Connect, itch.io, dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, Heroic, Legendary, Roblox weekly ranking and setup isolation, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
                     checks.running = false;
                     Qt.quit();
                     break;

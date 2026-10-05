@@ -2,7 +2,6 @@ use super::{
     installed::{self, Installed},
     *,
 };
-use serde_json::Value;
 
 pub struct Heroic;
 impl Provider for Heroic {
@@ -37,7 +36,9 @@ impl Provider for Heroic {
                         installed::epic_games(&root.join("legendaryConfig/legendary"), &mut errors)
                     }
                     "gog" => gog_games(&root, &mut errors),
-                    _ => amazon_games(&root, &mut errors),
+                    _ => {
+                        installed::amazon_games(&root.join("nile_config/nile"), &mut errors, false)
+                    }
                 };
                 let library = installed::read_json(
                     &root.join(format!("store_cache/{runner}_library.json")),
@@ -142,66 +143,6 @@ fn gog_games(root: &Path, errors: &mut Vec<String>) -> Vec<Installed> {
                     ..Default::default()
                 },
                 path,
-            })
-        })
-        .collect()
-}
-
-fn amazon_games(root: &Path, errors: &mut Vec<String>) -> Vec<Installed> {
-    let file = root.join("nile_config/nile/installed.json");
-    let Some(value) = installed::read_json(&file, errors) else {
-        return vec![];
-    };
-    let Some(records) = value.as_array() else {
-        errors.push(format!("{}: Expected an installed array", file.display()));
-        return vec![];
-    };
-    let library = installed::read_json(&root.join("nile_config/nile/library.json"), errors);
-    records
-        .iter()
-        .filter_map(|info| {
-            let id = info["id"].as_str().unwrap_or("");
-            if !installed::valid_id(id) {
-                errors.push(format!("{}: Invalid Amazon game id", file.display()));
-                return None;
-            }
-            let path =
-                installed::installed_path(info["path"].as_str().unwrap_or(""), &file, errors)?;
-            let metadata = library
-                .as_ref()
-                .and_then(Value::as_array)
-                .and_then(|items| {
-                    items
-                        .iter()
-                        .find(|item| item["product"]["id"].as_str() == Some(id))
-                })
-                .map(|item| &item["product"]);
-            let mut art = Artwork {
-                icon: crate::artwork::local_icon(&path),
-                ..Default::default()
-            };
-            if let Some(metadata) = metadata {
-                let details = &metadata["productDetail"]["details"];
-                for key in ["backgroundUrl1", "backgroundUrl2"] {
-                    if let Some(url) = details[key].as_str().filter(|s| s.starts_with("https://")) {
-                        art.remote.push(url.into());
-                    }
-                }
-                if art.icon.is_empty() {
-                    art.icon = metadata["productDetail"]["iconUrl"]
-                        .as_str()
-                        .unwrap_or("")
-                        .into();
-                }
-            }
-            Some(Installed {
-                id: id.into(),
-                title: installed::title_or_folder(
-                    metadata.and_then(|m| m["title"].as_str()),
-                    &path,
-                ),
-                path,
-                art,
             })
         })
         .collect()

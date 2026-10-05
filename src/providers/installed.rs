@@ -1,4 +1,4 @@
-//! Shared, read-only installed-game metadata for Legendary and Heroic's Epic backend.
+//! Shared, read-only installed-game metadata for Legendary, Heroic and Nile.
 use super::*;
 use serde_json::Value;
 
@@ -190,4 +190,71 @@ pub(super) fn epic_games(root: &Path, errors: &mut Vec<String>) -> Vec<Installed
         });
     }
     games
+}
+
+pub(super) fn amazon_games(
+    root: &Path,
+    errors: &mut Vec<String>,
+    require_library: bool,
+) -> Vec<Installed> {
+    let file = root.join("installed.json");
+    let Some(value) = read_json(&file, errors) else {
+        return vec![];
+    };
+    let Some(records) = value.as_array() else {
+        errors.push(format!("{}: Expected an installed array", file.display()));
+        return vec![];
+    };
+    let library = read_json(&root.join("library.json"), errors);
+    records
+        .iter()
+        .filter_map(|info| {
+            let id = info["id"].as_str().unwrap_or("");
+            if !valid_id(id) {
+                errors.push(format!("{}: Invalid Amazon game id", file.display()));
+                return None;
+            }
+            let path = installed_path(info["path"].as_str().unwrap_or(""), &file, errors)?;
+            let metadata = library
+                .as_ref()
+                .and_then(Value::as_array)
+                .and_then(|items| {
+                    items
+                        .iter()
+                        .find(|item| item["product"]["id"].as_str() == Some(id))
+                })
+                .map(|item| &item["product"]);
+            if require_library && metadata.is_none() {
+                errors.push(format!(
+                    "{}: No library metadata for installed Amazon game {id}; run nile library sync",
+                    file.display()
+                ));
+                return None;
+            }
+            let mut art = Artwork {
+                icon: crate::artwork::local_icon(&path),
+                ..Default::default()
+            };
+            if let Some(metadata) = metadata {
+                let details = &metadata["productDetail"]["details"];
+                for key in ["backgroundUrl1", "backgroundUrl2"] {
+                    if let Some(url) = details[key].as_str().filter(|s| s.starts_with("https://")) {
+                        art.remote.push(url.into());
+                    }
+                }
+                if art.icon.is_empty() {
+                    art.icon = metadata["productDetail"]["iconUrl"]
+                        .as_str()
+                        .unwrap_or("")
+                        .into();
+                }
+            }
+            Some(Installed {
+                id: id.into(),
+                title: title_or_folder(metadata.and_then(|m| m["title"].as_str()), &path),
+                path,
+                art,
+            })
+        })
+        .collect()
 }

@@ -103,7 +103,15 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 - [ ] Add EA app and Rockstar Games Launcher installed-game discovery.
   - Verify current installation manifests/registry and direct-game requests using upstream evidence and real fixtures.
   - Keep launchers' account handling; do not invent hidden-window flags or guess game executables.
-- [ ] Add additional Minecraft launchers with local metadata fixtures and direct instance launch where supported.
+- [x] Add MultiMC, PolyMC and ATLauncher with local metadata fixtures and direct instance launch.
+  - Reuse the Prism instance parser for MultiMC/PolyMC while preserving existing Prism IDs and behavior.
+  - Respect custom directories, portable executables, Flatpak commands, installed Minecraft versions and modpack artwork.
+  - ATLauncher reads instance JSON without modifying it and launches by instance name in the selected data folder.
+- [x] Add standalone Nile Amazon installations with CLI launch and matching child-process configuration.
+  - Share Amazon metadata parsing with Heroic, require library metadata and fuel.json for Nile, preserve runtime options and reserve provider IDs.
+- [ ] Validate actual MultiMC, PolyMC, ATLauncher and Nile launches on Linux and Windows.
+  - Check cold/already-running launchers, account/Java/error prompts, portable and Flatpak installs, spaces/Unicode and post-game behavior.
+  - Check Nile Wine/prefix overrides, Amazon SDK requirements and moved/custom configurations.
 - [x] Add standalone Linux desktop game/emulator discovery, including Flatpak/Snap exports.
   - Respect desktop IDs, user masking, categories, hidden entries and installed executables; skip existing store launchers/game links.
   - Dispatch through GIO to preserve desktop-entry semantics; verify arguments, field codes and working folders with a fixture game.
@@ -171,6 +179,8 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 - [x] Configure full Linux/Windows/macOS GUI release CI with downloadable build artifacts.
 
 ## Verification recorded for this pass
+
+- Additional launchers: all 104 Linux Rust tests pass with and without the GUI feature, including MultiMC/PolyMC custom directories, ATLauncher instance metadata, Nile configuration/argument dispatch, source settings and Prism ID preservation. Core/full-GUI Clippy and expanded offscreen UI checks pass. Local GUI linking uses Clang and LLD because GNU gold fails to resolve CXX-Qt initializer symbols on this machine; actual signed-in game launches remain on the checklist above.
 
 - Linux 0.6: 92 Rust tests pass, including Battle.net/Ubisoft protobuf fixtures, strict Ubisoft URI validation, itch.io database/configuration cases and platform executable resolution. Core and GUI-enabled tests pass; the Qt bridge is owned by the library so GUI test binaries link correctly. Clippy passes with `-D warnings`; Kirigami checks exercise Battle.net, Ubisoft, itch.io, desktop games and Steam installed/shortcut filters.
 - 0.6 artwork: real Diablo IV, Assassin’s Creed Odyssey and A Short Hike covers decode and cache successfully. New integrations still require real game launch validation; fixture/CI success does not confirm launcher window behavior.

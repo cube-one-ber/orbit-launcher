@@ -1,4 +1,5 @@
 //! Providers discover local records; they never modify launcher-owned files.
+mod atlauncher;
 mod battlenet;
 mod binary_metadata;
 mod desktop;
@@ -10,6 +11,7 @@ mod itch;
 mod legendary;
 mod lutris;
 mod modrinth;
+mod nile;
 mod prism;
 mod roblox;
 mod steam;
@@ -25,9 +27,21 @@ use std::{
     process::{Command, Stdio},
 };
 pub use {
-    battlenet::BattleNet, desktop::Desktop, epic::Epic, gog::Gog, heroic::Heroic, itch::Itch,
-    legendary::Legendary, lutris::Lutris, modrinth::Modrinth, prism::Prism, roblox::Roblox,
-    steam::Steam, ubisoft::Ubisoft,
+    atlauncher::ATLauncher,
+    battlenet::BattleNet,
+    desktop::Desktop,
+    epic::Epic,
+    gog::Gog,
+    heroic::Heroic,
+    itch::Itch,
+    legendary::Legendary,
+    lutris::Lutris,
+    modrinth::Modrinth,
+    nile::Nile,
+    prism::{MultiMC, PolyMC, Prism},
+    roblox::Roblox,
+    steam::Steam,
+    ubisoft::Ubisoft,
 };
 
 pub trait Provider: Send {
@@ -108,9 +122,13 @@ pub fn discover(settings: &Settings, config_dir: &Path) -> Library {
         Box::new(Steam),
         Box::new(Lutris),
         Box::new(Prism),
+        Box::new(MultiMC),
+        Box::new(PolyMC),
+        Box::new(ATLauncher),
         Box::new(Modrinth),
         Box::new(Heroic),
         Box::new(Legendary),
+        Box::new(Nile),
         Box::new(Roblox),
         Box::new(Epic),
         Box::new(Gog),
@@ -124,9 +142,13 @@ pub fn discover(settings: &Settings, config_dir: &Path) -> Library {
         "steam",
         "lutris",
         "prism",
+        "multimc",
+        "polymc",
+        "atlauncher",
         "modrinth",
         "heroic",
         "legendary",
+        "nile",
         "roblox",
         "epic",
         "gog",
