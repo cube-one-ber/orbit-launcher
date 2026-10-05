@@ -1,200 +1,169 @@
 # Orbit
 
-A local-first game and application launcher written in **Rust**, with a native **Qt 6 / KDE Kirigami** interface. Bring installed games into one searchable library, or add executables and JSON providers of your own.
+Bring your games and apps together in one searchable library. Orbit finds games from supported launchers, lets you add your own apps, and can show your most played Roblox experiences.
 
-## Features
+**[Download Orbit](https://github.com/cube-one-ber/orbit-launcher/releases)** · [Set up Roblox](#add-roblox-support) · [Troubleshooting](#troubleshooting)
 
-- **One library:** Steam, Lutris, Prism Launcher, Modrinth Launcher, Heroic, Legendary, Roblox, Battle.net, Ubisoft Connect, itch.io, Epic Games, GOG Galaxy and standalone desktop games, with platform availability shown below.
-- **Roblox top five:** a bundled Chrome/Chromium extension syncs your most played experiences from the last week, with personal playtime, Roblox artwork and direct joins.
-- **Broader game support:** standalone Linux desktop/Flatpak games and emulators, plus Steam’s non-Steam shortcuts with their Proton settings.
-- **Cleaner Steam:** quiet direct launch requests, installed/shortcut filters, recent-account artwork and stale-install filtering.
-- **Clean dark and light themes:** searchable grid/list views, compact cards, favorites, recent launches and keyboard shortcuts. The launcher list scrolls while settings stay accessible.
-- **Better artwork:** launcher covers, public store artwork, Modrinth galleries, offline caching and per-game custom covers.
-- **Minecraft update art:** covers match each instance's installed game drop or update, with an option to prefer modpack galleries.
-- **Direct Prism launches:** Play starts the selected instance while skipping Prism's main window; Prism manages accounts, Java and mod loaders.
-- **Quiet launches:** Heroic requests `--no-gui` and a hidden-window launch link; Legendary launches through its CLI, with console windows suppressed on Windows.
-- **More installed libraries:** Battle.net and Ubisoft Connect on Windows, plus itch.io and kitch on Linux/Windows. Recent itch-setup launches native games without its main window.
-- **Extendable:** add custom applications or implement JSON/Rust providers without changing the interface.
+## Download and open Orbit
+
+You do not need to install Rust, Qt or developer tools to use a release download.
+
+### 1. Get the right download
+
+1. Open the **[Releases page](https://github.com/cube-one-ber/orbit-launcher/releases)**.
+2. Choose the newest release at the top. Releases marked **Pre-release** are early builds and may have bugs.
+3. Scroll to **Assets** below the release description. Click **Assets** to expand the list if it is collapsed.
+4. Click the file that matches your computer:
+
+| Your computer | File to download |
+| --- | --- |
+| Windows 10 or 11, 64-bit Intel/AMD | `orbit-windows-x86_64.zip` |
+| Linux, 64-bit Intel/AMD | `orbit-linux-x86_64.tar.gz` |
+| Mac with Apple Silicon, such as M1, M2 or M3 | `orbit-macos-arm64.tar.gz` |
+| Mac with an Intel processor | `orbit-macos-x86_64.tar.gz` |
+
+On a Mac, **Apple menu → About This Mac** tells you which chip or processor you have.
+
+Choose one of the application files above. **Source code** is for developers, `SHA256SUMS` is for checking downloads, and the `orbit-roblox-…` files are browser extensions rather than the Orbit app. The Roblox extension is already included inside Orbit.
+
+### 2. Extract and run it
+
+**Windows**
+
+1. Find the ZIP in your **Downloads** folder.
+2. Right-click it and select **Extract All**, then finish extracting.
+3. Open the extracted folder and double-click **`orbit.exe`**.
+
+Keep the entire extracted folder together, including its DLL files and subfolders. Run the extracted copy; moving only `orbit.exe` will leave required files behind. Orbit is portable, so there is no installation wizard.
+
+**Linux**
+
+1. Find the `.tar.gz` file in your **Downloads** folder.
+2. Use your archive manager to extract it.
+3. Open a terminal in the extracted folder and run:
+
+```sh
+./orbit
+```
+
+The Linux package targets Ubuntu 24.04 or a compatible newer distribution. Qt and Kirigami are bundled; your system supplies glibc and graphics drivers.
+
+**macOS**
+
+1. Download the archive for your Mac's processor. macOS 15 or newer is required.
+2. Double-click the `.tar.gz` file to extract it.
+3. Open **`Orbit.app`** from the extracted files.
+
+Prerelease apps are not notarized. If macOS blocks opening the app, review the message in **System Settings → Privacy & Security** and approve it if you trust the download. Native macOS game discovery is still in development; use **Add game** or a custom provider for now.
+
+For package requirements and build details, see [automated builds and downloads](docs/ci.md).
+
+## Find and play your games
+
+1. Install your game launcher and the games you want to play. Sign in through that launcher first.
+2. Open Orbit and select **Sources**.
+3. Enable the launchers you use. Orbit checks their usual installation folders automatically.
+4. Return to your library, find a game, and select **Play**. Press **Ctrl+R** to refresh after installing more games.
+
+If a launcher uses a custom folder, select its **Configure** button under **Sources**, use **Browse folder**, and save. The guides below explain which folder each source needs.
+
+Orbit brings existing installations together. Your original launcher still manages game downloads, accounts, updates and settings, and may open when a game needs them.
+
+### Supported libraries
+
+These integrations are available in this repository; an older release may have fewer sources.
+
+| Library | Linux | Windows | Setup help |
+| --- | --- | --- | --- |
+| Steam, including non-Steam shortcuts | Yes | Yes | [Steam](docs/steam.md) |
+| Prism Launcher, MultiMC, PolyMC, ATLauncher | Yes | Yes | [Minecraft launchers](docs/additional-launchers.md) |
+| Modrinth Launcher | Yes | Yes | [Source configuration](docs/advanced.md#your-library) |
+| Heroic and Legendary | Yes | Yes | [Epic, GOG and Amazon libraries](docs/launchers.md) |
+| Nile (Amazon Games) | Yes | Yes | [Nile setup](docs/additional-launchers.md) |
+| itch.io / kitch | Yes | Yes | [Additional launchers](docs/common-launchers.md) |
+| Lutris | Yes | — | [Source configuration](docs/advanced.md#your-library) |
+| Desktop games and emulators | Yes | — | [Desktop games](docs/desktop-games.md) |
+| Epic Games, GOG Galaxy, Battle.net, Ubisoft Connect | — | Yes | [Windows guide](docs/windows.md) |
+| Roblox | Report import; compatible client needed to play | Yes; installed Roblox client needed | [Tutorial below](#add-roblox-support) |
+| Games and apps you add yourself | Yes | Yes | [Add a game or app](#add-a-game-or-app-yourself) |
+
+## Add Roblox support
+
+Orbit can show **your five most played Roblox experiences from the last week**, with your playtime and account name. It uses the account signed in to your browser. If you played fewer than five experiences, it shows the available ones.
+
+You will need **Chrome or Chromium**, a Roblox account, and Orbit running normally. To play on Windows, install Roblox and sign in to its game client too. On Linux, importing the list works, but playing requires a compatible Roblox client and protocol handler; see the [Roblox guide](docs/roblox.md#artwork-and-direct-launching). Native macOS game discovery is not yet supported.
+
+### 1. Prepare the browser extension
+
+1. In Orbit, open **Sources** and enable **Roblox**.
+2. Next to Roblox, select **Configure → Set up browser sync**.
+3. Orbit creates the included extension files and displays a **Prepared extension folder**. Select **Copy path**.
+4. Leave this dialog open while you complete the browser steps.
+
+You do not need to download a separate Roblox extension ZIP from Releases for this setup.
+
+### 2. Load it in Chrome or Chromium
+
+1. Orbit should open your browser's Extensions page. If it does not, open Chrome or Chromium, type `chrome://extensions` in the address bar, and press Enter.
+2. Turn on **Developer mode** on that page.
+3. Select **Load unpacked**.
+4. In the folder picker, navigate to or paste the folder path you copied from Orbit, then select that folder.
+5. Check that **Orbit Roblox Sync** appears in the extension list and is enabled.
+
+Choose the extension folder itself, which contains `manifest.json`, rather than a ZIP or the report file. This browser step is needed because the extension is not published in the Chrome Web Store.
+
+### 3. Sync your Roblox games
+
+1. Open **[roblox.com](https://www.roblox.com/)** in the same browser and sign in normally. If Roblox was already open when you installed the extension, reload that tab.
+2. Click the browser's **Extensions** button beside the address bar, open **Orbit Roblox Sync**, and select **Sync now**.
+3. The extension downloads a file named **`orbit-roblox-top-games.json`**. This is the report Orbit reads; you do not need to open or edit it.
+4. Return to Orbit's Roblox configuration and select **Save**. Leave **Report path (optional)** empty if your browser downloads to your usual Downloads folder.
+5. Select **Roblox** in Orbit's sidebar. Press **Ctrl+R** to refresh, or wait up to 30 seconds for an automatic check.
+6. Choose an experience and select **Play** to open it in your installed Roblox client.
+
+Automatic sync runs while a Roblox page is open, at most once every 15 minutes. The last successful report remains available when your browser is closed or offline. Orbit does not install the Roblox game client, and you do not enter your Roblox password into Orbit. Login cookies stay in your browser.
+
+### If your browser saves downloads somewhere else
+
+1. Open **Orbit Roblox Sync** in your browser and look at **Report path** to find the saved file.
+2. In Orbit, open **Sources → Roblox → Configure → Choose report**.
+3. Select **`orbit-roblox-top-games.json`**, then select **Save** and refresh.
+
+For Firefox's temporary development extension, custom launch commands, updates and more help, see the [full Roblox guide](docs/roblox.md).
+
+## Add a game or app yourself
+
+1. Select **Add game**, or press **Ctrl+N**.
+2. Enter a name and use the folder button beside **Executable** to choose the program you want to run.
+3. Leave **Arguments (optional)** as `[]` unless the program needs launch arguments. Leave other optional fields empty if you do not need them.
+4. Select **Add**. The entry appears in your library.
+
+## Make the library yours
+
+- Use search (**Ctrl+F**), source filters and favorites to find games quickly.
+- Open **Appearance** to choose dark or light mode, grid or list view, and card size.
+- Open a game's details and select **Choose cover** to use your own picture.
+- In **Appearance**, turn off **Download missing covers** to use local and previously cached images. **Minecraft covers** lets you choose game update artwork or modpack galleries.
 
 ![Orbit in dark mode](docs/dark.png)
 
 ![Orbit in light mode](docs/light.png)
 
-## Platform support
+## Troubleshooting
 
-| Source | Linux | Windows | Discovery and launching |
-| --- | --- | --- | --- |
-| Steam | Yes | Implemented | Installed manifests and non-Steam shortcuts, extra libraries, account-aware covers; quiet native/Flatpak/Windows launch requests |
-| Lutris | Yes | Unavailable | Installed games from the read-only database; native/Flatpak launching |
-| Prism Launcher | Yes | Implemented | Instances, custom directories, Minecraft update covers; direct instance launch skips the main window |
-| Modrinth Launcher | Yes | Implemented | Read-only legacy/current databases, custom data folders, installed instance versions; current instance launch links |
-| Heroic Games Launcher | Yes | Implemented | Installed Epic, GOG and Amazon games; native/Flatpak launching, cached store artwork and quiet launch requests |
-| Legendary | Yes | Implemented | Standalone Epic installations, local metadata, CLI launching with the matching configuration folder |
-| Roblox | Report import; compatible client required | Implemented | Browser sync of personal weekly top five, public thumbnails; direct Roblox join links |
-| Epic Games | Unavailable | Implemented | Installed `.item` manifests; Epic protocol launching, excluding incomplete installs, DLC and engine plugins |
-| GOG Galaxy | Unavailable | Implemented | Registry game folders and `goggame-*.info`; Galaxy launching with game ID and path |
-| Battle.net | Unavailable | Implemented | Windows registry and bounded `product.db` discovery; known installed products, direct game requests and catalog artwork |
-| Ubisoft Connect | Unavailable | Implemented | Registry and `uplay_install.state` discovery; direct game links, local covers and exact store title artwork |
-| itch.io / kitch | Yes | Implemented | Read-only installed cave metadata, cached covers; recent itch-setup launches native games headlessly and handles required app fallback |
-| Desktop games | Yes | Unavailable | Standalone games/emulators from native, Flatpak and Snap desktop entries; GIO preserves launch semantics |
-| Custom games/apps and JSON providers | Yes | Implemented | Executable, separate arguments, optional working folder and local artwork |
-
-Every successful commit push publishes a [prerelease with ready-to-run packages](https://github.com/cube-one-ber/orbit-launcher/releases) for **Linux x86_64, Windows x86_64, and macOS Intel/Apple Silicon**. Windows downloads include Qt, Kirigami, plugins and Microsoft C++ runtimes: extract the entire ZIP and run `orbit.exe`. CI tests all four extracted packages on separate fresh runners before publishing. See [automated builds and downloads](docs/ci.md) for checks and platform requirements. Native macOS game discovery is not implemented yet; custom games and JSON providers can be configured. Real game launches still need validation with installed clients; follow the [Windows guide](docs/windows.md) and [detailed TODO](TODO.md).
-
-## Run on Linux
-
-On Arch Linux / CachyOS:
-
-```sh
-sudo pacman -S --needed rust base-devel qt6-base qt6-declarative kirigami
-QMAKE=/usr/bin/qmake6 cargo run --locked
-```
-
-Qt 6.5+, development headers/tools, Kirigami 6 and a C++ toolchain are required. Other distributions need equivalent packages. CXX-Qt generates the Qt bridge at build time. Orbit draws interface icons itself, so a desktop icon theme is unnecessary. The relevant game launchers must be installed and configured to play their games.
-
-```sh
-cargo run --locked -- --demo         # Sample library; no launches or configuration writes
-cargo run --locked -- --demo --light # Preview the light theme
-cargo build --locked --release      # Binary: target/release/orbit
-```
-
-Set `QMAKE` to Qt 6's qmake executable for nonstandard installations. Use matching Qt and Kirigami libraries.
-
-## Run on Windows
-
-In an x64 MSVC developer environment with KDE Craft activated:
-
-```powershell
-.\scripts\build-windows.ps1 -QMake C:\CraftRoot\bin\qmake.exe
-.\target\x86_64-pc-windows-msvc\release\orbit.exe --demo
-```
-
-Use your actual Craft path. `-Package` stages Qt/KDE dependencies and runs isolated interaction checks. See the [Windows guide](docs/windows.md) for prerequisites, paths and native release checks.
-
-## Your library
-
-Choose **dark or light mode**, switch between grid and list views, and adjust card size in Appearance. Search, source filters, favorites and recent launches keep the library easy to navigate. Steam has separate filters for installed games and non-Steam shortcuts. Browse controls help configure sources and add a game or application. Invalid forms keep your input for correction.
-
-The default library contains actual installed games and, after connecting browser sync, your Roblox weekly top five. Sample entries appear only with `--demo`. Orbit does not ask for account credentials; Roblox authentication stays in your signed-in browser. A successful launch message confirms dispatch of the request; it does not confirm that the game reached its main menu.
-
-Under **Sources**, enable integrations, add absolute paths, or set a launcher command override:
-
-| Source | Additional path should point to |
+| Problem | What to try |
 | --- | --- |
-| Steam | A Steam folder or extra library containing `steamapps`; shortcuts are read from the client’s `userdata` |
-| Desktop games | A Linux application folder containing `.desktop` files, or an individual desktop file |
-| Lutris | Its data directory or `pga.db` |
-| Prism | Its data directory containing `prismlauncher.cfg` and normally `instances` |
-| Modrinth | Its application data directory containing `app.db`, or `app.db` itself; custom content folders are read from its settings |
-| Heroic | Its configuration folder containing `legendaryConfig`, `gog_store` or `nile_config` |
-| Legendary | Its configuration folder containing `installed.json`, or `installed.json` itself |
-| Roblox | The extension's `orbit-roblox-top-games.json` report, or its download folder; leave empty to use Downloads |
-| Battle.net | Its Agent folder containing `product.db`, or the database itself |
-| Ubisoft Connect | Game folders or immediate library folders containing `uplay_install.state` |
-| itch.io / kitch | An `itch` or `kitch` data folder containing `db/butler.db`, or that database; Windows uses the current roaming profile |
-| Epic | A manifest directory containing `.item` files |
-| GOG | A game folder or library with `goggame-*.info` in immediate game folders |
+| Windows reports missing DLLs | Extract the entire ZIP again and run `orbit.exe` inside that folder, with its DLLs and subfolders beside it. |
+| A library is empty | Check that the source is enabled, install games through its launcher, then refresh with **Ctrl+R**. Configure the source folder if you use a custom location. |
+| Roblox has no games | Keep a signed-in Roblox tab open, reload it, and use **Sync now**. Check the extension popup for errors and confirm Orbit can find the report. The list uses last week's playtime, so it may be empty if there is no qualifying activity. |
+| Roblox shows the wrong account | Sign in to the intended account on Roblox in the browser and select **Sync now**. The next successful report replaces the previous account's list. |
+| Roblox appears but Play fails | Install and sign in to a compatible Roblox client. Importing the browser report and opening a game are separate steps. |
+| Games appear only as examples | Restart Orbit without `--demo`. Demo mode shows a sample library and does not launch games or save configuration. |
 
-Commands are JSON arrays, such as `["C:/Apps/PrismLauncher/prismlauncher.exe"]`, `["/opt/PrismLauncher.AppImage"]` or `["flatpak", "run", "org.prismlauncher.PrismLauncher"]`. Orbit appends game-specific arguments. Ubisoft Connect, Epic and current Modrinth instances normally use their registered URI handlers; a command override receives the URI as one argument.
+To update Orbit, download and extract a newer release, then use its app. Keep the new package's files together. If you use Roblox, select **Set up browser sync** again, click **Reload** for the extension on `chrome://extensions`, and reload your Roblox tab.
 
-Steam Play requests tray mode and starts the selected game directly, preserving Steam launch options and Proton settings. Non-Steam shortcuts and custom artwork come from the most recent local account. Hidden shortcuts, support tools and stale recorded installations are skipped. Login and update prompts may still appear. See the [Steam guide](docs/steam.md).
+Still stuck? **[Open an issue](https://github.com/cube-one-ber/orbit-launcher/issues)** with your operating system, Orbit release and what happened.
 
-Desktop games detects standalone Linux games and emulators from application menus, including Flatpak and Snap. It uses `gio launch` to preserve desktop-entry quoting, arguments, field codes and working folders, and skips existing store launchers/game links. Install GLib’s `gio` if needed. See the [desktop game guide](docs/desktop-games.md).
+For source folders, command overrides, settings, building from source and custom JSON/Rust providers, see [Advanced setup and development](docs/advanced.md). See the [development checklist](TODO.md) for planned work.
 
-Prism uses `--dir <data-folder> --launch <instance-id>` to start the instance while skipping its main window. Prism still handles authentication, Java and mod loaders, and may show account or error dialogs. Existing Prism settings control console windows and reopening after the game exits.
-
-Modrinth discovery supports both legacy `profiles` and current `instances` databases, follows custom content folders, and skips unfinished or missing installations. Current builds launch via `modrinth://launch/instance/<id>`. Older builds lack direct instance launch support, so their entries show **Open launcher** and ask you to select the profile there. Configure a command override if your Linux desktop has no Modrinth URI handler.
-
-Heroic reads installed Epic, GOG and Amazon records rather than importing every owned game. Play requests `--no-gui` and `gui=false` so current Heroic builds keep the main window hidden, including when already running. Heroic still manages Wine/Proton, accounts and launch settings. Older builds or account/error prompts may show UI.
-
-Legendary discovers standalone installations and starts `legendary launch -- <app-name>` with the discovered folder in `LEGENDARY_CONFIG_PATH`. Install Legendary and sign in through its CLI first. Heroic-managed Epic games belong to the Heroic source; standalone Legendary discovery does not automatically scan Heroic folders. See the [Heroic and Legendary guide](docs/launchers.md) for paths and command overrides.
-
-Battle.net and Ubisoft Connect discover installed Windows games automatically and request the selected game directly. Their launchers may still show login, update or other required windows. itch.io reads installed games/apps from its local database and uses `itch-setup --run-game`; install a recent itch-setup with that command. Native games skip the main window, while HTML games, required prompts and older butler builds fall back to the app. See the [additional launcher guide](docs/common-launchers.md) for supported products, paths, overrides and platform limits.
-
-For Roblox, use **Sources → Roblox → Configure → Set up browser sync**. Orbit prepares the embedded Chrome/Chromium extension and opens the Extensions page. Enable Developer mode and **Load unpacked** once; Chrome requires this browser step for an unpublished extension. Visit Roblox while signed in to sync automatically, at most every 15 minutes. Orbit watches the local report and shows your top five **from the last week**, with playtime and account name. Play joins the selected experience directly, skipping Roblox's home screen. See the [Roblox setup guide](docs/roblox.md) for redirected downloads, offline use, command overrides and current release limitations.
-
-Settings live in `$XDG_CONFIG_HOME/orbit/settings.json` (normally `~/.config/orbit/settings.json`) on Linux and `%APPDATA%\Orbit\settings.json` on Windows. `ORBIT_CONFIG_DIR` overrides the directory. Writes atomically replace the file. Legacy accent-based settings retain favorites, source paths and history, and default to dark mode. Malformed settings are reported and protected from automatic overwrite; correct the file or move it aside, then restart. `--light` selects and saves light mode unless used with `--demo`.
-
-Keyboard shortcuts: **Ctrl+F** search, **Ctrl+R** refresh, **Ctrl+N** add, **Ctrl+,** appearance, **Escape** close dialogs / clear search.
-
-## Artwork and offline use
-
-Covers load from installed launchers and a background artwork cache. Small application icons keep their proportions; missing images use a quiet initials placeholder. Open a game's details and select **Choose cover** to use a local image, or **Reset** to restore automatic selection.
-
-Under **Appearance**, **Download missing covers** controls networking and is enabled by default. Downloads use public artwork services and may send a game title or product/project ID; Orbit does not request account credentials. Disable this option to use local and previously cached artwork offline.
-
-**Minecraft covers** defaults to **Game drops & updates**, matching the installed Minecraft version rather than the newest release. Select **Modpack galleries** to prefer featured Modrinth artwork for linked packs; missing galleries fall back to update art.
-
-The cache lives in `~/.cache/orbit/artwork` on Linux (respecting `XDG_CACHE_HOME`) and `%LOCALAPPDATA%\Orbit\cache\artwork` on Windows. `ORBIT_CACHE_DIR` changes the cache root; setting only `ORBIT_CONFIG_DIR` isolates it under `<config>/cache/artwork`.
-
-Demo mode reads existing cached covers without downloading. To preview the sample library with real artwork:
-
-```sh
-cargo run --locked --no-default-features --example artwork-preview -- /tmp/orbit-preview-cache/artwork
-ORBIT_CACHE_DIR=/tmp/orbit-preview-cache cargo run --locked -- --demo
-```
-
-The first command downloads and validates public covers without launching games. See the [artwork guide](docs/artwork.md) for selection priorities, cache behavior, upstream references and provider hints.
-
-## Extend Orbit
-
-### JSON providers
-
-Create a `providers` folder inside Orbit's configuration directory, add a manifest such as [`examples/local-games.json`](examples/local-games.json), and refresh. Sources can open this directory. Each provider appears in navigation and Sources and can be disabled. IDs must be unique ASCII letters, digits or hyphens; `steam`, `lutris`, `prism`, `modrinth`, `heroic`, `legendary`, `roblox`, `epic`, `gog`, `battlenet`, `ubisoft`, `itch`, `desktop` and `custom` are reserved. Game IDs are namespaced automatically.
-
-```json
-{
-  "id": "native",
-  "name": "Native games",
-  "games": [{
-    "id": "supertuxkart",
-    "title": "SuperTuxKart",
-    "provider": "native",
-    "subtitle": "Open-source kart racing",
-    "artwork": "",
-    "command": ["supertuxkart"],
-    "directory": null
-  }]
-}
-```
-
-`artwork` accepts a local `file:///...` URL or HTTPS image URL downloaded through Orbit’s cache. Optional `art` hints describe icons, remote covers, Minecraft versions and Modrinth projects; see the [artwork guide](docs/artwork.md). `directory` sets the working folder. Optional `environment` supplies environment variables to the launched command without changing Orbit’s own environment. Arguments pass directly without shell evaluation. Reading a manifest does not execute it; pressing Play does. Optional `launch_uri` takes precedence over `command` and accepts Epic game-launch links on Windows Ubisoft direct game links on Windows, or Modrinth instance-launch and Roblox experience-join links on Linux/Windows. Ubisoft, Modrinth and Roblox links are restricted to the supported launch operation. Most extensions should use `command`.
-
-### Rust providers
-
-Implement `Provider` in `src/providers/`, returning `Game` records, discovery errors and platform availability. Register it in `providers::discover`; stable IDs preserve favorites and history. Discovery runs on a worker thread and publishes results on the GUI thread. `model`, `store`, `platform`, `providers` and `artwork` work independently of Qt with `--no-default-features`.
-
-QML owns presentation; [`qml/Theme.qml`](qml/Theme.qml) defines semantic colors and [`src/bridge.rs`](src/bridge.rs) exposes Rust operations through CXX-Qt.
-
-## Linux desktop installation
-
-After a release build:
-
-```sh
-install -Dm755 target/release/orbit ~/.local/bin/orbit
-install -Dm644 packaging/app.orbit.Launcher.svg ~/.local/share/icons/hicolor/scalable/apps/app.orbit.Launcher.svg
-install -Dm644 packaging/app.orbit.Launcher.desktop ~/.local/share/applications/app.orbit.Launcher.desktop
-```
-
-Ensure `~/.local/bin` is on the desktop session's `PATH`, or use its absolute path in the desktop file's `Exec` entry.
-
-## Validation
-
-```sh
-cargo fmt --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked --no-default-features
-cargo test --locked # Includes the Qt-enabled library; requires GUI build dependencies
-node --test browser-extension/roblox/tests/sync.test.cjs
-QMAKE=/usr/bin/qmake6 cargo build --locked
-scripts/check-ui.sh
-QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software target/debug/orbit --demo --smoke-test
-```
-
-Rust tests cover Steam libraries and escaped Windows paths, read-only Lutris queries, custom Prism directories, Epic/GOG fixtures, both Modrinth schemas, Heroic’s three stores, Legendary configuration/metadata, quiet launch arguments, artwork selection/cache/offline behavior, Minecraft version matching, extensions, protocols, metadata migration and repeated settings replacement. Windows CI also exercises a temporary test-owned registry key. UI checks cover both palettes, search, favorites, filters, views, dialogs, custom games, validation, compact navigation, image/icon error fallbacks, artwork preferences and demo isolation.
-
-The 0.6 update includes **92 Rust tests** and **8 browser sync tests**, plus core/full-GUI Clippy and offscreen UI checks. New coverage includes Battle.net/Ubisoft protobuf parsing, itch.io databases, Steam binary shortcuts/account selection/stale installs, desktop game filtering and real GIO dispatch of a fixture game. Roblox coverage includes personal rankings, account isolation, bounded reports, direct-join validation, public artwork and cached offline use. Windows CI includes a console-window suppression check. Real signed-in Roblox sync, native Windows game launches and clean-machine deployment remain on the [release checklist](TODO.md).
-
-The smoke test loads the Kirigami window and exits automatically. Add `--screenshot /absolute/path/preview.png` to capture the rendered page, or `--light` for its light theme. On Windows, run `scripts/check-ui.ps1 -Executable <path-to-orbit.exe>` after building. See [TODO.md](TODO.md) for native Windows, accessibility and packaging work.
-
-MIT licensed; see [LICENSE](LICENSE).
+Orbit is written in Rust with Qt 6 and KDE Kirigami. [MIT licensed](LICENSE).
