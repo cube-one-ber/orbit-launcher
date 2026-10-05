@@ -225,6 +225,136 @@ impl Platform {
             "prismlauncher.exe",
         )
     }
+    pub fn multimc_roots(&self) -> Vec<PathBuf> {
+        let mut roots = if self.os == Os::Windows {
+            vec![] // Official MultiMC packages are portable; users can add any folder.
+        } else {
+            vec![crate::store::data_home().join("multimc")]
+        };
+        let binary = if self.os == Os::Windows {
+            "MultiMC.exe"
+        } else {
+            "multimc"
+        };
+        roots.extend(find_on_path(binary).and_then(|p| {
+            let p = std::fs::canonicalize(p).ok()?;
+            let root = p.parent()?;
+            root.join("multimc.cfg")
+                .is_file()
+                .then(|| root.to_path_buf())
+        }));
+        roots
+    }
+    pub fn polymc_roots(&self) -> Vec<PathBuf> {
+        if self.os == Os::Windows {
+            let mut roots = vec![self.roaming.join("PolyMC")];
+            roots.extend(self.polymc_executables().into_iter().filter_map(|p| {
+                let root = p.parent()?;
+                root.join("portable.txt")
+                    .is_file()
+                    .then(|| root.to_path_buf())
+            }));
+            roots
+        } else {
+            vec![
+                crate::store::data_home().join("PolyMC"),
+                crate::store::data_home().join("polymc"),
+                self.home.join(".var/app/org.polymc.PolyMC/data/PolyMC"),
+                self.home.join(".var/app/org.polymc.PolyMC/data/polymc"),
+            ]
+        }
+    }
+    fn polymc_executables(&self) -> Vec<PathBuf> {
+        std::iter::once(self.local.join("Programs/PolyMC/polymc.exe"))
+            .chain(
+                self.program_files
+                    .iter()
+                    .map(|p| p.join("PolyMC/polymc.exe")),
+            )
+            .chain(find_on_path("polymc.exe"))
+            .collect()
+    }
+    pub fn multimc_command(&self, root: &Path) -> String {
+        if self.os == Os::Windows {
+            executable(
+                std::iter::once(root.join("MultiMC.exe")).chain(find_on_path("MultiMC.exe")),
+                "MultiMC.exe",
+            )
+        } else {
+            // The official Linux archive's wrapper is MultiMC at its root.
+            executable([root.join("MultiMC")], "multimc")
+        }
+    }
+    pub fn polymc_command(&self, root: &Path) -> String {
+        if self.os == Os::Windows {
+            executable(
+                std::iter::once(root.join("polymc.exe")).chain(self.polymc_executables()),
+                "polymc.exe",
+            )
+        } else {
+            executable([root.join("bin/polymc"), root.join("polymc")], "polymc")
+        }
+    }
+    pub fn atlauncher_roots(&self) -> Vec<PathBuf> {
+        if self.os == Os::Windows {
+            vec![self.roaming.join("ATLauncher")]
+        } else {
+            vec![
+                crate::store::data_home().join("atlauncher"),
+                self.home.join(".var/app/com.atlauncher.ATLauncher/data"),
+            ]
+        }
+    }
+    pub fn atlauncher_command(&self, root: &Path) -> Vec<String> {
+        if self.os == Os::Windows {
+            vec![executable(
+                std::iter::once(root.join("ATLauncher.exe"))
+                    .chain(std::iter::once(
+                        self.roaming.join("ATLauncher/ATLauncher.exe"),
+                    ))
+                    .chain(
+                        self.program_files
+                            .iter()
+                            .map(|p| p.join("ATLauncher/ATLauncher.exe")),
+                    )
+                    .chain(std::iter::once(
+                        self.local.join("Programs/ATLauncher/ATLauncher.exe"),
+                    ))
+                    .chain(find_on_path("ATLauncher.exe")),
+                "ATLauncher.exe",
+            )]
+        } else if root.join("ATLauncher.jar").is_file() {
+            vec![
+                "java".into(),
+                "-jar".into(),
+                root.join("ATLauncher.jar").to_string_lossy().into_owned(),
+            ]
+        } else {
+            vec!["atlauncher".into()]
+        }
+    }
+    pub fn nile_roots(&self) -> Vec<PathBuf> {
+        // Nile appends /nile to NILE_CONFIG_PATH, unlike Legendary's override.
+        let base = env::var_os("NILE_CONFIG_PATH")
+            .or_else(|| env::var_os("XDG_CONFIG_HOME"))
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                if self.os == Os::Windows {
+                    self.roaming.clone()
+                } else {
+                    self.config_home.clone()
+                }
+            });
+        vec![base.join("nile")]
+    }
+    pub fn nile_command(&self) -> String {
+        let binary = if self.os == Os::Windows {
+            "nile.exe"
+        } else {
+            "nile"
+        };
+        executable(find_on_path(binary), binary)
+    }
     pub fn galaxy_command(&self) -> String {
         executable(
             self.program_files

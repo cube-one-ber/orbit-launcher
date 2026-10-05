@@ -581,6 +581,14 @@ fn demo_library() -> Library {
         ("A Short Hike", "itch", "Installed · itch.io"),
         ("SuperTuxKart", "desktop", "Installed · Desktop game"),
         ("RetroArch", "steam", "Non-Steam game · Steam"),
+        ("MultiMC Survival", "multimc", "Minecraft 1.21.5 · MultiMC"),
+        ("PolyMC Creative", "polymc", "Minecraft 1.21.5 · PolyMC"),
+        (
+            "ATLauncher Adventure",
+            "atlauncher",
+            "Minecraft 1.21.5 · ATLauncher",
+        ),
+        ("Amazon Adventure", "nile", "Amazon Games · Nile"),
     ]
     .into_iter()
     .enumerate()
@@ -596,7 +604,7 @@ fn demo_library() -> Library {
         artwork: String::new(),
         art: Artwork {
             roblox_universe: (provider == "roblox").then_some(2440500124),
-            minecraft_version: [2, 8].contains(&i).then(|| "1.21.5".into()),
+            minecraft_version: [2, 8, 15, 16, 17].contains(&i).then(|| "1.21.5".into()),
             modrinth_project: (i == 8).then(|| "1KVo5zza".into()),
             remote: artwork::steam_urls(match i {
                 0 => "578650",
@@ -629,6 +637,10 @@ fn demo_library() -> Library {
             ("steam", "Steam", 5),
             ("lutris", "Lutris", 1),
             ("prism", "Prism Launcher", 1),
+            ("multimc", "MultiMC", 1),
+            ("polymc", "PolyMC", 1),
+            ("atlauncher", "ATLauncher", 1),
+            ("nile", "Nile (Amazon Games)", 1),
             ("modrinth", "Modrinth Launcher", 1),
             ("heroic", "Heroic Games Launcher", 1),
             ("legendary", "Legendary", 1),
