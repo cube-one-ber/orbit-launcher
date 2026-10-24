@@ -182,6 +182,10 @@ impl<F: Fetcher> ArtworkService<F> {
             }
         }
     }
+    /// Caches a remote HTTPS image through the bounded artwork cache; returns its file URL.
+    pub fn cached_image(&self, url: &str) -> Option<String> {
+        self.image(url)
+    }
     /// Explicit covers win; Minecraft drop/gallery preferences precede tiny icons.
     pub fn resolve(&self, game: &mut Game, override_path: Option<&str>) {
         if let Some(path) = override_path {

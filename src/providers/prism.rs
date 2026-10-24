@@ -1,19 +1,17 @@
 use super::*;
 use std::{collections::BTreeMap, io::Read};
+/// Top-level settings in either the Qt INI or legacy MultiMC format.
 fn ini(path: &Path) -> Result<BTreeMap<String, String>, String> {
-    Ok(read_metadata(path)
-        .map_err(|e| format!("{}: {e}", path.display()))?
-        .lines()
-        .filter_map(|line| {
-            let line = line.trim();
-            if line.starts_with(['#', ';', '[']) {
-                return None;
-            }
-            let (key, value) = line.split_once('=')?;
-            Some((key.trim().into(), value.trim().into()))
-        })
-        .collect())
+    crate::instances::read_values(path)
 }
+/// Modrinth loader IDs for Prism component UIDs.
+const LOADERS: [(&str, &str); 5] = [
+    ("net.fabricmc.fabric-loader", "fabric"),
+    ("org.quiltmc.quilt-loader", "quilt"),
+    ("net.minecraftforge", "forge"),
+    ("net.neoforged", "neoforge"),
+    ("com.mumfrey.liteloader", "liteloader"),
+];
 /// Prism, MultiMC and PolyMC retain the same local instance format and CLI.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum InstanceLauncher {
@@ -193,15 +191,23 @@ fn discover_instances(config: &SourceConfig, kind: InstanceLauncher) -> (Vec<Gam
             let key = url::Url::from_file_path(&instance)
                 .map(|u| u.to_string())
                 .unwrap_or_default();
+            let mut loader = None;
             let version = match read_metadata(&instance.join("mmc-pack.json")) {
                 Ok(bytes) => match serde_json::from_str::<serde_json::Value>(&bytes) {
-                    Ok(pack) => pack["components"].as_array().and_then(|items| {
-                        items
-                            .iter()
-                            .find(|v| v["uid"] == "net.minecraft")
-                            .and_then(|v| v["version"].as_str())
-                            .map(str::to_owned)
-                    }),
+                    Ok(pack) => {
+                        let components = pack["components"].as_array().cloned().unwrap_or_default();
+                        let version_of = |uid: &str| {
+                            components
+                                .iter()
+                                .find(|v| v["uid"] == uid)
+                                .map(|v| v["version"].as_str().unwrap_or_default().to_owned())
+                        };
+                        loader = LOADERS.iter().find_map(|(uid, id)| {
+                            version_of(uid)
+                                .map(|v| (id.to_string(), Some(v).filter(|v| !v.is_empty())))
+                        });
+                        version_of("net.minecraft").filter(|v| !v.is_empty())
+                    }
                     Err(e) => {
                         errors.push(format!("{}: {e}", instance.join("mmc-pack.json").display()));
                         None
@@ -214,6 +220,23 @@ fn discover_instances(config: &SourceConfig, kind: InstanceLauncher) -> (Vec<Gam
                     properties.get("IntendedVersion").cloned()
                 }
             };
+            // Prism's MinecraftInstance::gameRoot: ".minecraft" only when "minecraft" is absent.
+            let game_dir =
+                if instance.join(".minecraft").exists() && !instance.join("minecraft").exists() {
+                    instance.join(".minecraft")
+                } else {
+                    instance.join("minecraft")
+                };
+            let modpack = properties
+                .get("ManagedPack")
+                .filter(|v| *v == "true")
+                .map(|_| {
+                    properties
+                        .get("ManagedPackName")
+                        .filter(|n| !n.is_empty())
+                        .cloned()
+                        .unwrap_or_else(|| "a modpack".into())
+                });
             let project = properties
                 .get("ManagedPackType")
                 .filter(|v| *v == "modrinth")
@@ -229,6 +252,15 @@ fn discover_instances(config: &SourceConfig, kind: InstanceLauncher) -> (Vec<Gam
                     kind.name()
                 ),
                 artwork: crate::artwork::local_cover(&instance),
+                instance: Some(MinecraftInstance {
+                    launcher: kind.id().into(),
+                    root: instance.clone(),
+                    game_dir,
+                    minecraft_version: version.clone(),
+                    loader: loader.as_ref().map(|(id, _)| id.clone()),
+                    loader_version: loader.and_then(|(_, v)| v),
+                    modpack,
+                }),
                 art: Artwork {
                     minecraft_version: version,
                     modrinth_project: project,

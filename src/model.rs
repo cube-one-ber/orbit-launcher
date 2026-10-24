@@ -30,6 +30,24 @@ pub struct Artwork {
     pub roblox_universe: Option<u64>,
 }
 
+/// A Minecraft instance whose content and settings Orbit can change on explicit request.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MinecraftInstance {
+    /// Owning launcher's provider ID: prism, multimc, polymc or modrinth.
+    pub launcher: String,
+    /// Instance folder; Prism-family folders contain instance.cfg.
+    pub root: PathBuf,
+    /// Game folder containing mods, resourcepacks and shaderpacks.
+    pub game_dir: PathBuf,
+    pub minecraft_version: Option<String>,
+    /// Modrinth loader ID such as fabric, quilt, forge or neoforge; `None` for vanilla.
+    pub loader: Option<String>,
+    pub loader_version: Option<String>,
+    /// Modpack managing this instance. Pack updates in the launcher may replace manual changes.
+    pub modpack: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Game {
     pub id: String,
@@ -56,6 +74,8 @@ pub struct Game {
     /// Provider-defined ranking, where 1 is first and 0 means unranked.
     #[serde(default)]
     pub source_rank: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance: Option<MinecraftInstance>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

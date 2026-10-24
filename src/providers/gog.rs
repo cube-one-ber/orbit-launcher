@@ -111,6 +111,7 @@ impl Provider for Gog {
                             favorite: false,
                             source_rank: 0,
                             last_played: 0,
+                            instance: None,
                         });
                     }
                     Err(e) => errors.push(format!("{}: {e}", path.display())),

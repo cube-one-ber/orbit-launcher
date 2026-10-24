@@ -8,6 +8,7 @@ fn main() {
             "qml/GameCard.qml",
             "qml/GameArtwork.qml",
             "qml/UiChecks.qml",
+            "qml/InstanceManager.qml",
         ]),
     )
     .qt_module("Quick")

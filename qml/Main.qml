@@ -48,6 +48,14 @@ Kirigami.ApplicationWindow {
     }
     function openGame(game) { selectedGame = game; details.open(); }
     function closeGame() { details.close(); }
+    function openInstance(game) {
+        if (backend.open_instance(game.id)) {
+            details.close();
+            instanceManager.show();
+        }
+    }
+    function closeInstance() { instanceManager.close(); }
+    readonly property alias instanceEditor: instanceManager
     function openAdd() { addDialog.error = ""; addDialog.open(); }
     function closeAdd() { addDialog.close(); }
     function openSource(id) {
@@ -87,7 +95,7 @@ Kirigami.ApplicationWindow {
         if (Qt.application.arguments.includes("--light")) save({theme:"light"});
         backend.refresh();
     }
-    Timer { interval: 100; repeat: true; running: backend.busy || backend.artwork_busy; onTriggered: backend.poll() }
+    Timer { interval: 100; repeat: true; running: backend.busy || backend.artwork_busy || backend.instance_busy; onTriggered: backend.poll() }
     Timer { interval: 30000; repeat: true; running: !backend.demo; onTriggered: backend.check_roblox_report() }
     Timer { interval: 2400; running: Qt.application.arguments.includes("--smoke-test"); onTriggered: Qt.quit() }
     Timer {
@@ -102,7 +110,7 @@ Kirigami.ApplicationWindow {
     Shortcut { sequence: "Ctrl+R"; onActivated: backend.refresh() }
     Shortcut { sequence: "Ctrl+,"; onActivated: root.changeSection("appearance") }
     Shortcut { sequence: "Ctrl+N"; onActivated: root.openAdd() }
-    Shortcut { sequence: "Escape"; onActivated: { if (!details.opened && !addDialog.opened && !sourceDialog.opened) search.clear(); } }
+    Shortcut { sequence: "Escape"; onActivated: { if (!details.opened && !addDialog.opened && !sourceDialog.opened && !instanceManager.opened) search.clear(); } }
 
     component Button: Controls.Button {
         id: button
@@ -508,8 +516,10 @@ Kirigami.ApplicationWindow {
                 Button { visible: root.selectedGame !== null && root.selectedGame.provider === "custom"; text: "Remove"; onClicked: { backend.remove_game(root.selectedGame.id); details.close(); } }
                 Button { text: "Close"; quiet: true; onClicked: details.close() }
             }
+            Button { text: "Manage instance"; symbol: "settings"; visible: root.selectedGame !== null && !!root.selectedGame.instance; Layout.fillWidth: true; onClicked: root.openInstance(root.selectedGame) }
         }
     }
+    InstanceManager { id: instanceManager; host: root; backendObject: backend; theme: colors }
     Modal {
         id: sourceDialog
         property string sourceId: ""

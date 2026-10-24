@@ -28,6 +28,7 @@ pub(super) fn game(provider: &str, id: &str, title: String, path: &Path) -> Game
         favorite: false,
         last_played: 0,
         source_rank: 0,
+        instance: None,
     }
 }
 

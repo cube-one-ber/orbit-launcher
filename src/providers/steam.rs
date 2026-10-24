@@ -308,6 +308,7 @@ impl Provider for Steam {
                             .and_then(Value::text)
                             .and_then(|s| s.parse().ok())
                             .unwrap_or(0),
+                        instance: None,
                     });
                 }
             }
@@ -432,6 +433,7 @@ fn discover_shortcuts(
                 favorite: false,
                 source_rank: 0,
                 last_played: shortcut.last_played,
+                instance: None,
             });
         }
     }

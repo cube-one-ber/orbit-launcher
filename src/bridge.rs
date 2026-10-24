@@ -1,7 +1,16 @@
-use crate::{artwork, model::*, providers, store};
+use crate::{
+    artwork,
+    instances::{
+        ContentKind,
+        session::{Job, Outcome, Session},
+    },
+    model::*,
+    providers, store,
+};
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::QString;
 use std::{
+    collections::VecDeque,
     pin::Pin,
     sync::{
         Arc,
@@ -32,6 +41,8 @@ pub mod qobject {
         #[qproperty(bool, busy)]
         #[qproperty(bool, artwork_busy)]
         #[qproperty(bool, demo)]
+        #[qproperty(QString, instance_view)]
+        #[qproperty(bool, instance_busy)]
         type Backend = super::BackendRust;
         #[qinvokable]
         fn refresh(self: Pin<&mut Self>);
@@ -59,6 +70,28 @@ pub mod qobject {
         fn prepare_config(self: Pin<&mut Self>) -> QString;
         #[qinvokable]
         fn prepare_roblox_extension(self: Pin<&mut Self>) -> QString;
+        #[qinvokable]
+        fn open_instance(self: Pin<&mut Self>, id: &QString) -> bool;
+        #[qinvokable]
+        fn close_instance(self: Pin<&mut Self>);
+        #[qinvokable]
+        fn inspect_content(self: Pin<&mut Self>, kind: &QString);
+        #[qinvokable]
+        fn search_content(self: Pin<&mut Self>, kind: &QString, query: &QString, offset: i32);
+        #[qinvokable]
+        fn install_content(self: Pin<&mut Self>, kind: &QString, project: &QString);
+        #[qinvokable]
+        fn update_content(self: Pin<&mut Self>, kind: &QString, file_name: &QString);
+        #[qinvokable]
+        fn toggle_content(self: Pin<&mut Self>, kind: &QString, file_name: &QString) -> bool;
+        #[qinvokable]
+        fn remove_content(self: Pin<&mut Self>, kind: &QString, file_name: &QString) -> bool;
+        #[qinvokable]
+        fn add_content_file(self: Pin<&mut Self>, kind: &QString, path: &QString) -> bool;
+        #[qinvokable]
+        fn save_instance_settings(self: Pin<&mut Self>, json: &QString) -> bool;
+        #[qinvokable]
+        fn instance_folder(self: Pin<&mut Self>, kind: &QString) -> QString;
     }
 }
 pub struct BackendRust {
@@ -68,8 +101,15 @@ pub struct BackendRust {
     busy: bool,
     artwork_busy: bool,
     demo: bool,
+    instance_view: QString,
+    instance_busy: bool,
     settings: Settings,
     library: Library,
+    session: Option<Session>,
+    jobs: VecDeque<Job>,
+    job_receiver: Option<Receiver<(u64, Outcome)>>,
+    session_generation: u64,
+    running_instance: Option<String>,
     receiver: Option<Receiver<Library>>,
     artwork_receiver: Option<Receiver<artwork::ArtworkUpdate>>,
     artwork_cancel: Option<Arc<AtomicBool>>,
@@ -96,8 +136,15 @@ impl Default for BackendRust {
             busy: false,
             artwork_busy: false,
             demo,
+            instance_view: QString::from("{}"),
+            instance_busy: false,
             settings,
             library: Library::default(),
+            session: None,
+            jobs: VecDeque::new(),
+            job_receiver: None,
+            session_generation: 0,
+            running_instance: None,
             receiver: None,
             artwork_receiver: None,
             artwork_cancel: None,
@@ -215,6 +262,7 @@ impl qobject::Backend {
         }
     }
     pub fn poll(mut self: Pin<&mut Self>) {
+        self.as_mut().poll_instance();
         let result = self.rust().receiver.as_ref().map(|rx| rx.try_recv());
         match result {
             Some(Ok(mut library)) => {
@@ -317,6 +365,12 @@ impl qobject::Backend {
         }
     }
     pub fn launch(mut self: Pin<&mut Self>, id: &QString) {
+        if self.rust().running_instance.as_deref() == Some(id.to_string().as_str()) {
+            self.set_message(QString::from(
+                "Wait for the instance task to finish before launching.",
+            ));
+            return;
+        }
         if *self.demo() {
             self.set_message(QString::from("Preview mode · Launching is disabled. Run Orbit without --demo to use your library."));
             return;
@@ -464,6 +518,7 @@ impl qobject::Backend {
                     favorite: false,
                     source_rank: 0,
                     last_played: 0,
+                    instance: None,
                 })
             });
         match result {
@@ -552,6 +607,258 @@ impl qobject::Backend {
         )
     }
 }
+/// Instance manager: one open session, network jobs on worker threads, file changes inline.
+impl qobject::Backend {
+    fn publish_instance(mut self: Pin<&mut Self>) {
+        let view = self
+            .rust()
+            .session
+            .as_ref()
+            .map(|s| s.view().to_string())
+            .unwrap_or_else(|| "{}".into());
+        self.as_mut()
+            .set_instance_view(QString::from(view.as_str()));
+    }
+    pub fn open_instance(mut self: Pin<&mut Self>, id: &QString) -> bool {
+        let id = id.to_string();
+        let demo = *self.demo();
+        let session = self
+            .rust()
+            .library
+            .games
+            .iter()
+            .find(|g| g.id == id)
+            .and_then(|g| Session::new(g, demo));
+        let opened = session.is_some();
+        self.as_mut().rust_mut().session = session;
+        self.as_mut().rust_mut().session_generation += 1;
+        self.as_mut().rust_mut().jobs.clear();
+        self.publish_instance();
+        opened
+    }
+    pub fn close_instance(mut self: Pin<&mut Self>) {
+        // A running job finishes in the background; its outcome is discarded.
+        self.as_mut().rust_mut().session = None;
+        self.as_mut().rust_mut().session_generation += 1;
+        self.as_mut().rust_mut().jobs.clear();
+        self.publish_instance();
+    }
+    fn queue_job(mut self: Pin<&mut Self>, job: Job) {
+        if self.rust().session.is_none() {
+            return;
+        }
+        if *self.demo() {
+            if let Some(session) = self.as_mut().rust_mut().session.as_mut() {
+                session.demo_job(&job);
+            }
+            self.publish_instance();
+            return;
+        }
+        let jobs = &mut self.as_mut().rust_mut().jobs;
+        // A newer search replaces one that has not started yet.
+        if matches!(job, Job::Search { .. }) {
+            jobs.retain(|j| !matches!(j, Job::Search { .. }));
+        }
+        if !jobs.contains(&job) {
+            jobs.push_back(job);
+        }
+        self.as_mut().start_job();
+        self.publish_instance();
+    }
+    fn start_job(mut self: Pin<&mut Self>) {
+        if self.rust().job_receiver.is_some() {
+            return;
+        }
+        let icons = self
+            .rust()
+            .settings
+            .online_artwork
+            .then(|| store::cache_dir().join("artwork"));
+        let prepared = {
+            let mut rust = self.as_mut().rust_mut();
+            let rust = &mut *rust;
+            match (rust.jobs.pop_front(), rust.session.as_mut()) {
+                (Some(job), Some(session)) => {
+                    session.started(&job);
+                    let installed = session.installed_projects(job.kind());
+                    Some((
+                        job,
+                        session.instance.clone(),
+                        session.game_id.clone(),
+                        installed,
+                    ))
+                }
+                _ => {
+                    rust.jobs.clear();
+                    None
+                }
+            }
+        };
+        let Some((job, instance, game_id, installed)) = prepared else {
+            self.as_mut().set_instance_busy(false);
+            return;
+        };
+        let (tx, rx) = mpsc::channel();
+        let generation = self.rust().session_generation;
+        self.as_mut().rust_mut().running_instance = Some(game_id.clone());
+        self.as_mut().rust_mut().job_receiver = Some(rx);
+        self.as_mut().set_instance_busy(true);
+        std::thread::spawn(move || {
+            let result = crate::instances::session::run(&job, &instance, &installed, icons);
+            let _ = tx.send((
+                generation,
+                Outcome {
+                    game_id,
+                    job,
+                    result,
+                },
+            ));
+        });
+    }
+    fn poll_instance(mut self: Pin<&mut Self>) {
+        let result = self.rust().job_receiver.as_ref().map(|rx| rx.try_recv());
+        let follow_up = match result {
+            Some(Ok((generation, outcome))) if generation == self.rust().session_generation => self
+                .as_mut()
+                .rust_mut()
+                .session
+                .as_mut()
+                .and_then(|s| s.apply(outcome)),
+            Some(Ok(_)) => None,
+            Some(Err(mpsc::TryRecvError::Disconnected)) => {
+                if let Some(session) = self.as_mut().rust_mut().session.as_mut() {
+                    session.status.clear();
+                    session.error = "The Modrinth task stopped unexpectedly. Try again.".into();
+                }
+                None
+            }
+            _ => return,
+        };
+        self.as_mut().rust_mut().job_receiver = None;
+        self.as_mut().rust_mut().running_instance = None;
+        if let Some(job) = follow_up
+            && !self.rust().jobs.contains(&job)
+        {
+            self.as_mut().rust_mut().jobs.push_back(job);
+        }
+        self.as_mut().start_job();
+        self.publish_instance();
+    }
+    pub fn inspect_content(self: Pin<&mut Self>, kind: &QString) {
+        if let Some(kind) = ContentKind::parse(&kind.to_string()) {
+            self.queue_job(Job::Inspect(kind));
+        }
+    }
+    pub fn search_content(self: Pin<&mut Self>, kind: &QString, query: &QString, offset: i32) {
+        if let Some(kind) = ContentKind::parse(&kind.to_string()) {
+            self.queue_job(Job::Search {
+                kind,
+                query: query.to_string(),
+                offset: offset.max(0) as u64,
+            });
+        }
+    }
+    pub fn install_content(self: Pin<&mut Self>, kind: &QString, project: &QString) {
+        if let Some(kind) = ContentKind::parse(&kind.to_string()) {
+            self.queue_job(Job::Install {
+                kind,
+                project: project.to_string(),
+            });
+        }
+    }
+    pub fn update_content(self: Pin<&mut Self>, kind: &QString, file_name: &QString) {
+        if let Some(kind) = ContentKind::parse(&kind.to_string()) {
+            let file_name = Some(file_name.to_string()).filter(|f| !f.is_empty());
+            self.queue_job(Job::Update { kind, file_name });
+        }
+    }
+    /// Runs a file change unless a Modrinth task is using the instance.
+    fn change_files(
+        mut self: Pin<&mut Self>,
+        kind: &QString,
+        change: impl FnOnce(&mut Session, ContentKind) -> bool,
+    ) -> bool {
+        let busy = *self.instance_busy();
+        let kind = ContentKind::parse(&kind.to_string());
+        let changed = match (self.as_mut().rust_mut().session.as_mut(), kind) {
+            (Some(session), Some(_)) if busy => {
+                session.status.clear();
+                session.error = "Wait for the current Modrinth task to finish.".into();
+                false
+            }
+            (Some(session), Some(kind)) => change(session, kind),
+            _ => return false,
+        };
+        self.publish_instance();
+        changed
+    }
+    pub fn toggle_content(self: Pin<&mut Self>, kind: &QString, file_name: &QString) -> bool {
+        let file_name = file_name.to_string();
+        self.change_files(kind, |session, kind| session.toggle(kind, &file_name))
+    }
+    pub fn remove_content(self: Pin<&mut Self>, kind: &QString, file_name: &QString) -> bool {
+        let file_name = file_name.to_string();
+        self.change_files(kind, |session, kind| session.remove(kind, &file_name))
+    }
+    pub fn add_content_file(mut self: Pin<&mut Self>, kind: &QString, path: &QString) -> bool {
+        let path = std::path::PathBuf::from(path.to_string());
+        let added = self
+            .as_mut()
+            .change_files(kind, |session, kind| session.add_file(kind, &path));
+        // Identify the new file if this list already shows Modrinth details.
+        if let Some(kind) = ContentKind::parse(&kind.to_string())
+            && added
+            && self
+                .rust()
+                .session
+                .as_ref()
+                .is_some_and(|s| s.was_inspected(kind))
+        {
+            self.queue_job(Job::Inspect(kind));
+        }
+        added
+    }
+    pub fn save_instance_settings(mut self: Pin<&mut Self>, json: &QString) -> bool {
+        if *self.instance_busy() {
+            if let Some(session) = self.as_mut().rust_mut().session.as_mut() {
+                session.error = "Wait for the current instance task to finish.".into();
+            }
+            self.publish_instance();
+            return false;
+        }
+        let json = json.to_string();
+        let saved = self
+            .as_mut()
+            .rust_mut()
+            .session
+            .as_mut()
+            .is_some_and(|s| s.save_settings(&json));
+        self.as_mut().publish_instance();
+        if saved {
+            // Show the new instance name in the library.
+            self.refresh();
+        }
+        saved
+    }
+    pub fn instance_folder(mut self: Pin<&mut Self>, kind: &QString) -> QString {
+        let kind = ContentKind::parse(&kind.to_string());
+        let url = match self.as_mut().rust_mut().session.as_mut() {
+            Some(session) => match session.folder(kind) {
+                Ok(path) => url::Url::from_directory_path(path)
+                    .map(|u| u.to_string())
+                    .unwrap_or_default(),
+                Err(error) => {
+                    session.status.clear();
+                    session.error = error;
+                    String::new()
+                }
+            },
+            None => return QString::default(),
+        };
+        self.publish_instance();
+        QString::from(url.as_str())
+    }
+}
 fn demo_library() -> Library {
     let games = [
         ("The Outer Worlds", "legendary", "A new frontier awaits"),
@@ -629,6 +936,17 @@ fn demo_library() -> Library {
         favorite: false,
         source_rank: if provider == "roblox" { 1 } else { 0 },
         last_played: if i == 0 { 100 } else { 0 },
+        // Sample instances open the manager with preview content only.
+        instance: matches!(provider, "prism" | "modrinth" | "multimc" | "polymc").then(|| {
+            MinecraftInstance {
+                launcher: provider.into(),
+                minecraft_version: Some("1.21.5".into()),
+                loader: (provider != "polymc").then(|| "fabric".into()),
+                loader_version: (provider == "prism").then(|| "0.16.14".into()),
+                modpack: (provider == "modrinth").then(|| "a Modrinth modpack".into()),
+                ..Default::default()
+            }
+        }),
     })
     .collect();
     Library {

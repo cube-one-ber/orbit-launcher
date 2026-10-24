@@ -165,10 +165,18 @@ fn read_database(
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| first_art([instance.join("icon.png"), instance.join("icon.webp")]));
         let version = version.filter(|v| !v.is_empty());
-        let loader = loader
-            .filter(|v| v != "vanilla" && !v.is_empty())
-            .map(|v| format!(" · {v}"))
-            .unwrap_or_default();
+        let loader = loader.filter(|v| v != "vanilla" && !v.is_empty());
+        // Profiles are game folders; the app reconciles content changes made there.
+        let details = MinecraftInstance {
+            launcher: "modrinth".into(),
+            root: instance.clone(),
+            game_dir: instance.clone(),
+            minecraft_version: version.clone(),
+            loader: loader.clone(),
+            loader_version: None,
+            modpack: project.as_ref().map(|_| "a Modrinth modpack".into()),
+        };
+        let loader = loader.map(|v| format!(" · {v}")).unwrap_or_default();
         games.push(Game {
             id: format!("modrinth:{key}:{path}"), title: name,
             provider: "modrinth".into(),
@@ -179,6 +187,7 @@ fn read_database(
             command, environment: Default::default(), launch_uri, directory: None, favorite: false,
             source_rank: 0,
             last_played: played.unwrap_or(0).max(0) as u64,
+            instance: Some(details),
         });
     }
     Ok((games, errors))

@@ -193,7 +193,64 @@ Item {
                 case 32:
                     app.closeSource(); app.changeSection("library");
                     checks.verify(app.navigationFits && app.visibleGames.length === 19, "Expanded library and navigation remain usable");
-                    console.log("ORBIT_UI_TEST_PASS: MultiMC, PolyMC, ATLauncher, Nile, Desktop games, Steam installed/shortcut filtering, Battle.net, Ubisoft Connect, itch.io, dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, Heroic, Legendary, Roblox weekly ranking and setup isolation, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
+                    app.openInstance(app.library.games.find(g=>g.provider === "prism"));
+                    break;
+                case 33:
+                    checks.verify(app.instanceEditor.opened && app.instanceEditor.view.launcher === "prism", "Prism instance editor opens");
+                    checks.verify(app.instanceEditor.content.items.length === 4, "Installed mod files appear, including local files");
+                    backend.inspect_content("mods");
+                    checks.verify(app.instanceEditor.content.updates === 1, "Update checks populate installed versions");
+                    app.instanceEditor.browse();
+                    break;
+                case 34:
+                    checks.verify(app.instanceEditor.results.hits.length > 0, "Modrinth search populates compatible results");
+                    checks.verify(app.instanceEditor.results.hits.some(h=>h.installed), "Search marks installed projects");
+                    checks.verify(!backend.toggle_content("mods", "modmenu-11.0.3.jar.disabled"), "Preview cannot toggle files");
+                    checks.verify(!backend.remove_content("mods", "local-tweaks.jar"), "Preview cannot remove files");
+                    checks.verify(!backend.add_content_file("mods", "/tmp/preview-must-not-copy.jar"), "Preview cannot copy local files");
+                    backend.install_content("mods", "AANobbMI");
+                    checks.verify(app.instanceEditor.view.error.includes("Preview mode"), "Preview cannot download content");
+                    app.instanceEditor.selectTab("resourcepacks");
+                    app.instanceEditor.browse();
+                    break;
+                case 35:
+                    checks.verify(app.instanceEditor.content.items.length === 1 && app.instanceEditor.results.kind === "resourcepacks", "Resource packs have separate installed and search models");
+                    app.instanceEditor.selectTab("shaderpacks");
+                    backend.configure(JSON.stringify({theme:"light"}));
+                    if (Qt.application.arguments.includes("--instance-light-screenshot")) {
+                        const path = Qt.application.arguments[Qt.application.arguments.indexOf("--instance-light-screenshot") + 1];
+                        app.instanceEditor.contentItem.grabToImage(result=>result.saveToFile(path));
+                    }
+                    break;
+                case 36:
+                    checks.verify(app.instanceEditor.content.items.length === 1 && !app.darkMode, "Shader packs and light palette work in the narrow editor");
+                    app.instanceEditor.selectTab("settings");
+                    checks.verify(app.instanceEditor.view.settings.name === "Minecraft", "Prism settings load");
+                    checks.verify(!app.instanceEditor.saveSettings(), "Preview cannot save instance settings");
+                    app.closeInstance();
+                    break;
+                case 37:
+                    checks.verify(backend.instance_view === "{}", "Closing the editor clears its session");
+                    app.openInstance(app.library.games.find(g=>g.provider === "modrinth"));
+                    app.instanceEditor.selectTab("settings");
+                    break;
+                case 38:
+                    checks.verify(app.instanceEditor.view.settings === null && !!app.instanceEditor.view.modpack, "Modrinth settings stay launcher-owned and modpacks are labelled");
+                    app.closeInstance();
+                    backend.configure(JSON.stringify({theme:"dark"}));
+                    app.width = 1280; app.height = 820;
+                    app.openInstance(app.library.games.find(g=>g.provider === "prism"));
+                    backend.inspect_content("mods");
+                    break;
+                case 39:
+                    if (Qt.application.arguments.includes("--instance-screenshot")) {
+                        const path = Qt.application.arguments[Qt.application.arguments.indexOf("--instance-screenshot") + 1];
+                        app.instanceEditor.contentItem.grabToImage(result=>result.saveToFile(path));
+                    }
+                    break;
+                case 40:
+                    app.closeInstance();
+                    console.log("ORBIT_UI_TEST_PASS: instance manager, mods, resource/shader packs, compatible search, updates, settings, preview isolation, MultiMC, PolyMC, ATLauncher, Nile, Desktop games, Steam installed/shortcut filtering, Battle.net, Ubisoft Connect, itch.io, dark/light contrast, artwork and icon fallbacks, offline preference, Modrinth, Heroic, Legendary, Roblox weekly ranking and setup isolation, search, favorites, views, source filters, dialogs, custom games, validation, small window, preview safety");
                     checks.running = false;
                     Qt.quit();
                     break;

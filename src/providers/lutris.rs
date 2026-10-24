@@ -92,6 +92,7 @@ impl Provider for Lutris {
                         favorite: false,
                         source_rank: 0,
                         last_played: 0,
+                        instance: None,
                     })
                 })?;
                 rows.collect()

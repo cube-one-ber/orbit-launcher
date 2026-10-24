@@ -124,6 +124,7 @@ impl Provider for Roblox {
                             favorite: false,
                             last_played: 0,
                             source_rank: (index + 1) as u8,
+                            instance: None,
                         }
                     })
                     .collect();

@@ -184,6 +184,7 @@ fn saved_metadata_survives_refresh() {
         favorite: false,
         source_rank: 0,
         last_played: 0,
+        instance: None,
     });
     settings.favorites.push("custom:1".into());
     settings.played.insert("custom:1".into(), 123);
@@ -216,6 +217,7 @@ fn missing_executable_reports_actionable_error() {
         favorite: false,
         source_rank: 0,
         last_played: 0,
+        instance: None,
     };
     assert!(
         providers::launch(&game)
@@ -252,6 +254,7 @@ fn launch_arguments_are_not_interpreted_by_a_shell() {
         favorite: false,
         source_rank: 0,
         last_played: 0,
+        instance: None,
     };
     providers::launch(&game).unwrap();
     for _ in 0..100 {

@@ -145,6 +145,8 @@ For Firefox's temporary development extension, custom launch commands, updates a
 - Open a game's details and select **Choose cover** to use your own picture.
 - In **Appearance**, turn off **Download missing covers** to use local and previously cached images. **Minecraft covers** lets you choose game update artwork or modpack galleries.
 
+Open a Prism or Modrinth instance's details and select **Manage instance** to add, enable, disable, remove or update mods, resource packs and shader packs. Browse compatible Modrinth content or add a local file. Prism, MultiMC and PolyMC also support editing the instance name, notes, memory and Java arguments. See [Managing Minecraft instances](docs/instances.md).
+
 ![Orbit in dark mode](docs/dark.png)
 
 ![Orbit in light mode](docs/light.png)

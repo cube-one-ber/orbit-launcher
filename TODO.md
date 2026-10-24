@@ -166,6 +166,17 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 - [ ] Add a cache size limit and an explicit artwork-cache cleanup action.
 - [ ] Add an optional stronger game-identity mapping for editions whose store titles differ across providers.
 
+## P2b — Minecraft instance management
+
+- [x] Expose Prism, MultiMC, PolyMC and Modrinth instance folders, Minecraft versions and loader metadata.
+- [x] Add an in-launcher manager for mods, resource packs and shader packs, including local files, enable/disable and confirmed removal.
+- [x] Browse compatible Modrinth content, resolve required mod dependencies and verify streamed downloads by size and SHA-512.
+- [x] Check for compatible updates, retain disabled state and preserve originals on failed downloads.
+- [x] Edit Prism-family instance name, notes, memory and Java arguments while preserving unrelated configuration.
+- [x] Keep Modrinth databases read-only; write Prism content index metadata and isolate demo operations.
+- [ ] Validate native Windows edits, file locks and launcher reconciliation on real Prism/Modrinth installations.
+- [ ] Validate running-launcher folder watchers, modpack updates and signed-in game launches after edits.
+
 ## P3 — Release quality
 
 - [x] Run formatting, core/full-GUI linting, provider tests and native offscreen UI checks on Linux.
@@ -179,6 +190,8 @@ Status: `[x]` implementation complete with local or CI verification of the appli
 - [x] Configure full Linux/Windows/macOS GUI release CI with downloadable build artifacts.
 
 ## Verification recorded for this pass
+
+- Minecraft instance management (2026-10-24): 121 regular Linux Rust tests pass in core and GUI-enabled builds; the isolated live Modrinth check also passes with real Iris/Sodium and shader downloads. Core and full-GUI Clippy pass with `-D warnings`. Qt interaction checks cover all content tabs, installed/update/search models, Prism settings, Modrinth settings ownership, both palettes, a narrow editor and demo write isolation. Native Windows edits and actual launcher reconciliation remain manual checks above. Local GUI validation uses LLD for the existing GNU gold linker issue.
 
 - Additional launchers: all 104 Linux Rust tests pass with and without the GUI feature, including MultiMC/PolyMC custom directories, ATLauncher instance metadata, Nile configuration/argument dispatch, source settings and Prism ID preservation. Core/full-GUI Clippy and expanded offscreen UI checks pass. Local GUI linking uses Clang and LLD because GNU gold fails to resolve CXX-Qt initializer symbols on this machine; actual signed-in game launches remain on the checklist above.
 
