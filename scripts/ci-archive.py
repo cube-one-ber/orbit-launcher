@@ -11,6 +11,8 @@ import sys
 import tomllib
 import zipfile
 
+from linux_runtime import host_library
+
 
 WORKSPACE = Path(__file__).resolve().parent.parent
 
@@ -96,7 +98,8 @@ def linux_runtime(stage, qt, kde):
     (stage / "lib").mkdir()
     for prefix in (qt, kde):
         for library in (prefix / "lib").glob("*.so*"):
-            shutil.copy2(library, stage / "lib" / library.name, follow_symlinks=False)
+            if not host_library(library.name):
+                shutil.copy2(library, stage / "lib" / library.name, follow_symlinks=False)
     copy_tree(qt / "qml", stage / "qml")
     copy_tree(kde / "qml", stage / "qml")
     for plugin_type in ("platforms", "imageformats", "iconengines", "styles", "tls",
@@ -106,9 +109,8 @@ def linux_runtime(stage, qt, kde):
         source = qt / "plugins" / plugin_type
         if source.is_dir():
             copy_tree(source, stage / "plugins" / plugin_type)
-    # Bundle vendor-neutral GL dispatch libraries, leaving actual graphics
-    # drivers and glibc provided by the Linux distribution.
-    system_libraries = re.compile(r"^(ld-linux|lib(c|m|mvec|dl|pthread|rt|resolv|util|anl)\.so|libnss_)")
+    # Keep driver-facing libraries together with the host's graphics stack.
+    # Older bundled Wayland/GBM/DRM libraries can prevent host drivers loading.
     queue = [stage / "bin/orbit", *stage.rglob("*.so*")]
     seen = set()
     environment = dict(os.environ, LD_LIBRARY_PATH=str(stage / "lib"))
@@ -123,7 +125,7 @@ def linux_runtime(stage, qt, kde):
             raise RuntimeError(f"Unresolved Linux dependency: {binary}\n{output}")
         for name, path in re.findall(r"^\s*(\S+) => (/\S+) \(", output, re.MULTILINE):
             destination = stage / "lib" / name
-            if not system_libraries.match(name) and not destination.exists():
+            if not host_library(name) and not destination.exists():
                 shutil.copy2(path, destination)
                 queue.append(destination)
     (stage / "bin/qt.conf").write_text("[Paths]\nPrefix=..\nPlugins=plugins\nQmlImports=qml\n", encoding="utf-8")

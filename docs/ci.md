@@ -40,8 +40,11 @@ Windows 10/11 x64 is required. Game clients and browsers remain separate install
 
 **Linux:** on Ubuntu 24.04 or a compatible newer distribution, extract the tar.gz
 and run `./orbit`. Libraries and QML imports resolve relative to the package. Qt,
-Kirigami, QML modules, plugins and native dependencies are included; glibc and
-graphics drivers come from your distribution.
+Kirigami, QML modules, plugins and application dependencies are included. The
+host supplies glibc, the C++ runtime, graphics drivers and their EGL/OpenGL,
+Wayland, X11, GBM/DRM libraries, plus Fontconfig/FreeType/Harfbuzz. These libraries
+must match the host's drivers and font configuration; bundling older copies can
+prevent Mesa/NVIDIA drivers from loading on newer distributions.
 
 **macOS:** extract the archive for Intel or Apple Silicon and open `Orbit.app`.
 Qt frameworks, Kirigami and QML/plugins are bundled. macOS 15+ is required. These
@@ -52,6 +55,9 @@ After building, CI extracts each actual upload on a **separate fresh runner**
 with no Qt/Kirigami/Rust setup. It moves the package into a path containing spaces,
 clears development library/import paths, verifies the embedded commit, and runs
 interaction checks, a native-window smoke test, and a light-theme smoke test.
+The Linux native-window test uses Qt's RHI/OpenGL renderer with Mesa's CPU driver,
+without forcing the Qt Quick software backend. Linux bundles are also rejected
+if they contain libraries reserved for the host graphics/font stack.
 Windows also checks required bundled DLLs; macOS verifies the app signature.
 Publishing requires formatting, browser tests, all platform builds and all four
 extracted-package checks to succeed. Uploads go to a draft before publication,

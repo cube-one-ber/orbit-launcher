@@ -170,7 +170,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y xvfb xauth libgl1 libegl1
+          sudo apt-get install --no-install-recommends -y xvfb xauth libgl1 libegl1 libgl1-mesa-dri libglx-mesa0 libegl-mesa0 \
+            libfontconfig1 libfreetype6 libharfbuzz0b libwayland-client0 libwayland-cursor0 libwayland-egl1
       # Deliberately no Rust, Qt, Kirigami, Craft, or MSVC setup in these jobs.
       - name: Test the relocated archive with isolated runtime paths
         run: python scripts/check-package.py ${{ matrix.platform }} target/download/${{ matrix.archive }}
