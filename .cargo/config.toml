@@ -1,0 +1,4 @@
+# CXX-Qt's automatic detection can choose GNU gold even when Rust supplies LLD.
+# Select LLD explicitly so its generated initializer archives resolve correctly.
+[target.'cfg(all(target_os = "linux", target_env = "gnu"))']
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]

@@ -7,7 +7,7 @@ For downloading a ready-to-run copy of Orbit and connecting Roblox, start with t
 On Arch Linux / CachyOS:
 
 ```sh
-sudo pacman -S --needed rust base-devel qt6-base qt6-declarative kirigami
+sudo pacman -S --needed rust base-devel lld qt6-base qt6-declarative kirigami
 QMAKE=/usr/bin/qmake6 cargo run --locked
 ```
 
@@ -20,6 +20,8 @@ cargo build --locked --release      # Binary: target/release/orbit
 ```
 
 Set `QMAKE` to Qt 6's qmake executable for nonstandard installations. Use matching Qt and Kirigami libraries.
+
+Linux GNU builds select LLD through `.cargo/config.toml`. This prevents CXX-Qt's linker detection from choosing GNU gold, which can fail to resolve its generated initializer symbols. Recent Rust toolchains can use their bundled LLD; installing `lld` also supports toolchains that require it on `PATH`. Plain `cargo build` needs no linker environment overrides.
 
 ## Run on Windows
 
